@@ -189,10 +189,12 @@ public class PDI extends JFrame {
 
         // Filtros
         JMenu filtros = menu("Filtros");
-        filtros.add(item("Grayscale",   e -> grayscale()));
-        filtros.add(item("Passa Baixa", e -> passaBaixa()));
-        filtros.add(item("Passa Alta",  e -> passaAlta()));
-        filtros.add(item("Threshold",   e -> threshold()));
+        filtros.add(item("Grayscale",          e -> grayscale()));
+        filtros.add(item("Grayscale + Brilho", e -> grayscaleComBrilho()));
+        filtros.add(item("Ajustar Brilho",     e -> ajustarBrilho()));
+        filtros.add(item("Passa Baixa",        e -> passaBaixa()));
+        filtros.add(item("Passa Alta",         e -> passaAlta()));
+        filtros.add(item("Threshold",          e -> threshold()));
 
         // Morfologia
         JMenu morf = menu("Morfologia Matemática");
@@ -312,7 +314,10 @@ public class PDI extends JFrame {
     private void rotacionar() {
         if (semImagem()) return;
         double g = pedirDouble("Ângulo de rotação (graus):", "Rotação", 90);
-        if (!Double.isNaN(g)) { imgTransformada = Opcoes.rotacao(imgOriginal, g); mostrar("Rotação " + g + "°"); }
+        if (!Double.isNaN(g)) {
+            imgTransformada = Opcoes.rotacao(imgOriginal, g);
+            mostrar("Rotação " + g + "°");
+        }
     }
 
     private void espelharHorizontal() {
@@ -330,19 +335,139 @@ public class PDI extends JFrame {
     private void aumentar() {
         if (semImagem()) return;
         double f = pedirDouble("Fator de aumento (ex: 2, 3, 1.5):", "Aumentar", 2);
-        if (!Double.isNaN(f) && f > 0) { imgTransformada = Opcoes.escala(imgOriginal, f, f); mostrar("Escala ×" + f); }
-        else if (!Double.isNaN(f)) JOptionPane.showMessageDialog(this, "O fator deve ser positivo.");
+        if (!Double.isNaN(f) && f > 0) {
+            imgTransformada = Opcoes.escala(imgOriginal, f, f);
+            mostrar("Escala ×" + f);
+        } else if (!Double.isNaN(f)) {
+            JOptionPane.showMessageDialog(this, "O fator deve ser positivo.");
+        }
     }
 
     private void diminuir() {
         if (semImagem()) return;
         double f = pedirDouble("Fator de redução (ex: 2, 3, 4):", "Diminuir", 2);
-        if (!Double.isNaN(f) && f > 0) { imgTransformada = Opcoes.escala(imgOriginal, 1.0/f, 1.0/f); mostrar("Escala ÷" + f); }
-        else if (!Double.isNaN(f)) JOptionPane.showMessageDialog(this, "O fator deve ser positivo.");
+        if (!Double.isNaN(f) && f > 0) {
+            imgTransformada = Opcoes.escala(imgOriginal, 1.0 / f, 1.0 / f);
+            mostrar("Escala ÷" + f);
+        } else if (!Double.isNaN(f)) {
+            JOptionPane.showMessageDialog(this, "O fator deve ser positivo.");
+        }
     }
 
-    // ── Filtros ───────────────────────────────────────────────────
-    private void grayscale()  { if (semImagem()) return; /* TODO */ }
+    // ══════════════════════════════════════════════════════════════
+    //  FILTROS
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * Converte para escala de cinzas usando luminosidade ITU-R BT.601:
+     *   Y = 0.299·R + 0.587·G + 0.114·B
+     * Equivalente ao nó "Grayscale" do Visnode.
+     */
+    private void grayscale() {
+        if (semImagem()) return;
+        imgTransformada = Opcoes.grayscale(imgOriginal);
+        mostrar("Grayscale (luminosidade)");
+    }
+
+    /**
+     * Converte para cinza E permite ajustar o brilho com um slider
+     * interativo com preview em tempo real (-255 a +255).
+     */
+    private void grayscaleComBrilho() {
+        if (semImagem()) return;
+
+        final BufferedImage cinza = Opcoes.grayscale(imgOriginal);
+
+        JSlider slider = new JSlider(-255, 255, 0);
+        slider.setMajorTickSpacing(85);
+        slider.setMinorTickSpacing(17);
+        slider.setPaintTicks(true);
+        slider.setPaintLabels(true);
+        slider.setPreferredSize(new Dimension(420, 60));
+
+        JLabel valorLabel = new JLabel("Brilho: 0", JLabel.CENTER);
+        valorLabel.setFont(F_MONO);
+
+        final int MAX_PV = 300;
+        double escPv = Math.min(1.0, Math.min(
+                (double) MAX_PV / cinza.getWidth(),
+                (double) MAX_PV / cinza.getHeight()));
+        final BufferedImage baseMin = Opcoes.escala(cinza, escPv, escPv);
+        final JLabel previewLabel  = new JLabel(new ImageIcon(baseMin));
+        previewLabel.setHorizontalAlignment(JLabel.CENTER);
+
+        slider.addChangeListener(e -> {
+            int delta = slider.getValue();
+            valorLabel.setText("Brilho: " + (delta >= 0 ? "+" : "") + delta);
+            previewLabel.setIcon(new ImageIcon(Opcoes.ajustarBrilho(baseMin, delta)));
+        });
+
+        JPanel painel = new JPanel(new BorderLayout(0, 8));
+        painel.add(valorLabel,   BorderLayout.NORTH);
+        painel.add(previewLabel, BorderLayout.CENTER);
+        painel.add(slider,       BorderLayout.SOUTH);
+
+        int resp = JOptionPane.showConfirmDialog(
+                this, painel, "Grayscale + Ajuste de Brilho",
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+
+        if (resp == JOptionPane.OK_OPTION) {
+            int delta = slider.getValue();
+            imgTransformada = Opcoes.ajustarBrilho(cinza, delta);
+            mostrar("Grayscale + Brilho " + (delta >= 0 ? "+" : "") + delta);
+        }
+    }
+
+    /**
+     * Ajusta o brilho da imagem atual (sem converter para cinza).
+     * Encadeia sobre qualquer transformação já aplicada.
+     */
+    private void ajustarBrilho() {
+        if (semImagem()) return;
+
+        final BufferedImage base = imgTransformada;
+
+        JSlider slider = new JSlider(-255, 255, 0);
+        slider.setMajorTickSpacing(85);
+        slider.setMinorTickSpacing(17);
+        slider.setPaintTicks(true);
+        slider.setPaintLabels(true);
+        slider.setPreferredSize(new Dimension(420, 60));
+
+        JLabel valorLabel = new JLabel("Brilho: 0", JLabel.CENTER);
+        valorLabel.setFont(F_MONO);
+
+        final int MAX_PV = 300;
+        double escPv = Math.min(1.0, Math.min(
+                (double) MAX_PV / base.getWidth(),
+                (double) MAX_PV / base.getHeight()));
+        final BufferedImage baseMin = Opcoes.escala(base, escPv, escPv);
+        final JLabel previewLabel  = new JLabel(new ImageIcon(baseMin));
+        previewLabel.setHorizontalAlignment(JLabel.CENTER);
+
+        slider.addChangeListener(e -> {
+            int delta = slider.getValue();
+            valorLabel.setText("Brilho: " + (delta >= 0 ? "+" : "") + delta);
+            previewLabel.setIcon(new ImageIcon(Opcoes.ajustarBrilho(baseMin, delta)));
+        });
+
+        JPanel painel = new JPanel(new BorderLayout(0, 8));
+        painel.add(valorLabel,   BorderLayout.NORTH);
+        painel.add(previewLabel, BorderLayout.CENTER);
+        painel.add(slider,       BorderLayout.SOUTH);
+
+        int resp = JOptionPane.showConfirmDialog(
+                this, painel, "Ajustar Brilho",
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+
+        if (resp == JOptionPane.OK_OPTION) {
+            int delta = slider.getValue();
+            imgTransformada = Opcoes.ajustarBrilho(base, delta);
+            mostrar("Brilho " + (delta >= 0 ? "+" : "") + delta);
+        }
+    }
+
+    // ── Filtros pendentes ─────────────────────────────────────────
     private void passaBaixa() { if (semImagem()) return; /* TODO */ }
     private void passaAlta()  { if (semImagem()) return; /* TODO */ }
     private void threshold()  { if (semImagem()) return; /* TODO */ }
