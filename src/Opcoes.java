@@ -9,7 +9,7 @@ public class Opcoes {
         return new BufferedImage(w, h, t);
     }
 
-    /** Garante que um valor de canal fique no intervalo [0, 255]. */
+    // Garante que um valor de canal fique no intervalo [0, 255]
     private static int clamp(int v) {
         return Math.max(0, Math.min(255, v));
     }

@@ -158,7 +158,9 @@ public class PDI extends JFrame {
         return c;
     }
 
-    // ── Menu ──────────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════
+    //  MENU
+    // ══════════════════════════════════════════════════════════════
     private void criarMenu() {
         JMenuBar bar = new JMenuBar();
 
@@ -179,22 +181,23 @@ public class PDI extends JFrame {
         JMenu transf = menu("Transformações Geométricas");
         transf.add(item("Transladar",  e -> transladar()));
         transf.add(item("Rotacionar",  e -> rotacionar()));
+        transf.add(item("Aumentar", e -> aumentar()));
+        transf.add(item("Diminuir", e -> diminuir()));
         JMenu espelhar = menu("Espelhar");
         espelhar.add(item("Horizontal", e -> espelharHorizontal()));
         espelhar.add(item("Vertical",   e -> espelharVertical()));
         transf.add(espelhar);
-        transf.addSeparator();
-        transf.add(item("Aumentar", e -> aumentar()));
-        transf.add(item("Diminuir", e -> diminuir()));
 
         // Filtros
         JMenu filtros = menu("Filtros");
         filtros.add(item("Grayscale",          e -> grayscale()));
-        filtros.add(item("Grayscale + Brilho", e -> grayscaleComBrilho()));
         filtros.add(item("Ajustar Brilho",     e -> ajustarBrilho()));
         filtros.add(item("Passa Baixa",        e -> passaBaixa()));
         filtros.add(item("Passa Alta",         e -> passaAlta()));
-        filtros.add(item("Threshold",          e -> threshold()));
+        JMenu threshold = menu("Threshold");
+        threshold.add(item("Sobel",   e -> thresholdSobel()));
+        threshold.add(item("Canny",   e -> thresholdCanny()));
+        filtros.add(threshold);
 
         // Morfologia
         JMenu morf = menu("Morfologia Matemática");
@@ -294,7 +297,11 @@ public class PDI extends JFrame {
         }
     }
 
-    // ── Transformações Geométricas ────────────────────────────────
+    // ══════════════════════════════════════════════════════════════
+    //  TRANFORMAÇÕES GEOMÉTICAS
+    // ══════════════════════════════════════════════════════════════
+
+    // ── Transladar ────────────────────────────────
     private void transladar() {
         if (semImagem()) return;
         JTextField txF = new JTextField("50"), tyF = new JTextField("50");
@@ -311,6 +318,7 @@ public class PDI extends JFrame {
         }
     }
 
+    // ── Rotacionar ────────────────────────────────
     private void rotacionar() {
         if (semImagem()) return;
         double g = pedirDouble("Ângulo de rotação (graus):", "Rotação", 90);
@@ -320,18 +328,21 @@ public class PDI extends JFrame {
         }
     }
 
+    // ── Espelhar Horizontalmente ────────────────────────────────
     private void espelharHorizontal() {
         if (semImagem()) return;
         imgTransformada = Opcoes.espelharHorizontal(imgOriginal);
         mostrar("Espelhamento Horizontal");
     }
 
+    // ── Espelhar Verticalmente ────────────────────────────────
     private void espelharVertical() {
         if (semImagem()) return;
         imgTransformada = Opcoes.espelharVertical(imgOriginal);
         mostrar("Espelhamento Vertical");
     }
 
+    // ── Aumentar ────────────────────────────────
     private void aumentar() {
         if (semImagem()) return;
         double f = pedirDouble("Fator de aumento (ex: 2, 3, 1.5):", "Aumentar", 2);
@@ -343,6 +354,7 @@ public class PDI extends JFrame {
         }
     }
 
+    // ── Diminuir ────────────────────────────────
     private void diminuir() {
         if (semImagem()) return;
         double f = pedirDouble("Fator de redução (ex: 2, 3, 4):", "Diminuir", 2);
@@ -354,74 +366,19 @@ public class PDI extends JFrame {
         }
     }
 
+    
     // ══════════════════════════════════════════════════════════════
     //  FILTROS
     // ══════════════════════════════════════════════════════════════
 
-    /**
-     * Converte para escala de cinzas usando luminosidade ITU-R BT.601:
-     *   Y = 0.299·R + 0.587·G + 0.114·B
-     * Equivalente ao nó "Grayscale" do Visnode.
-     */
+    // ── Ajusta escalas de cinza ────────────────────────────────
     private void grayscale() {
         if (semImagem()) return;
         imgTransformada = Opcoes.grayscale(imgOriginal);
         mostrar("Grayscale (luminosidade)");
     }
 
-    /**
-     * Converte para cinza E permite ajustar o brilho com um slider
-     * interativo com preview em tempo real (-255 a +255).
-     */
-    private void grayscaleComBrilho() {
-        if (semImagem()) return;
-
-        final BufferedImage cinza = Opcoes.grayscale(imgOriginal);
-
-        JSlider slider = new JSlider(-255, 255, 0);
-        slider.setMajorTickSpacing(85);
-        slider.setMinorTickSpacing(17);
-        slider.setPaintTicks(true);
-        slider.setPaintLabels(true);
-        slider.setPreferredSize(new Dimension(420, 60));
-
-        JLabel valorLabel = new JLabel("Brilho: 0", JLabel.CENTER);
-        valorLabel.setFont(F_MONO);
-
-        final int MAX_PV = 300;
-        double escPv = Math.min(1.0, Math.min(
-                (double) MAX_PV / cinza.getWidth(),
-                (double) MAX_PV / cinza.getHeight()));
-        final BufferedImage baseMin = Opcoes.escala(cinza, escPv, escPv);
-        final JLabel previewLabel  = new JLabel(new ImageIcon(baseMin));
-        previewLabel.setHorizontalAlignment(JLabel.CENTER);
-
-        slider.addChangeListener(e -> {
-            int delta = slider.getValue();
-            valorLabel.setText("Brilho: " + (delta >= 0 ? "+" : "") + delta);
-            previewLabel.setIcon(new ImageIcon(Opcoes.ajustarBrilho(baseMin, delta)));
-        });
-
-        JPanel painel = new JPanel(new BorderLayout(0, 8));
-        painel.add(valorLabel,   BorderLayout.NORTH);
-        painel.add(previewLabel, BorderLayout.CENTER);
-        painel.add(slider,       BorderLayout.SOUTH);
-
-        int resp = JOptionPane.showConfirmDialog(
-                this, painel, "Grayscale + Ajuste de Brilho",
-                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
-
-        if (resp == JOptionPane.OK_OPTION) {
-            int delta = slider.getValue();
-            imgTransformada = Opcoes.ajustarBrilho(cinza, delta);
-            mostrar("Grayscale + Brilho " + (delta >= 0 ? "+" : "") + delta);
-        }
-    }
-
-    /**
-     * Ajusta o brilho da imagem atual (sem converter para cinza).
-     * Encadeia sobre qualquer transformação já aplicada.
-     */
+    // ── Ajustar Brilho ────────────────────────────────
     private void ajustarBrilho() {
         if (semImagem()) return;
 
@@ -467,22 +424,30 @@ public class PDI extends JFrame {
         }
     }
 
-    // ── Filtros pendentes ─────────────────────────────────────────
+    // ── Filtros Pendentes ─────────────────────────────────────────
     private void passaBaixa() { if (semImagem()) return; /* TODO */ }
     private void passaAlta()  { if (semImagem()) return; /* TODO */ }
-    private void threshold()  { if (semImagem()) return; /* TODO */ }
+    private void thresholdSobel()  { if (semImagem()) return; /* TODO */ }
+    private void thresholdCanny()  { if (semImagem()) return; /* TODO */ }
 
-    // ── Morfologia ────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════
+    //  MORFOLOGIA
+    // ══════════════════════════════════════════════════════════════
     private void dilatacao()  { if (semImagem()) return; /* TODO */ }
     private void erosao()     { if (semImagem()) return; /* TODO */ }
     private void abertura()   { if (semImagem()) return; /* TODO */ }
     private void fechamento() { if (semImagem()) return; /* TODO */ }
     private void afinamento() { if (semImagem()) return; /* TODO */ }
 
-    // ── Extração ──────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════
+    //  DESAFIO
+    // ══════════════════════════════════════════════════════════════
     private void desafio()    { if (semImagem()) return; /* TODO */ }
 
-    // ── Main ──────────────────────────────────────────────────────
+
+    // ══════════════════════════════════════════════════════════════
+    //  MAIN
+    // ══════════════════════════════════════════════════════════════
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> new PDI().setVisible(true));
     }
