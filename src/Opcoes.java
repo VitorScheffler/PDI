@@ -451,4 +451,154 @@ public class Opcoes {
 
         return out;
     }
+
+// =========================================================
+    //  MORFOLOGIA MATEMÁTICA (escala de cinza)
+    // =========================================================
+
+    // Elemento estruturante em cruz, com peso 10 nas posições válidas
+    // (conforme material de referência: centro e os 4 vizinhos diretos)
+    private static final int[][] ELEMENTO_ESTRUTURANTE = {
+        { 0, 10,  0},
+        {10, 10, 10},
+        { 0, 10,  0}
+    };
+
+    // Dilatação em tons de cinza: para cada pixel, soma o peso do elemento
+    // estruturante ao valor do pixel correspondente e mantém o máximo
+    public static BufferedImage dilatacao(BufferedImage img) {
+        BufferedImage gray = grayscale(img);
+        int w = gray.getWidth(), h = gray.getHeight();
+        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                int max = 0;
+                for (int ky = -1; ky <= 1; ky++) {
+                    for (int kx = -1; kx <= 1; kx++) {
+                        int peso = ELEMENTO_ESTRUTURANTE[ky + 1][kx + 1];
+                        // posições do elemento estruturante fora da cruz (peso 0
+                        // e fora do centro) não participam da operação
+                        if (peso == 0 && !(ky == 0 && kx == 0)) continue;
+
+                        int px = clamp(x + kx, 0, w - 1);
+                        int py = clamp(y + ky, 0, h - 1);
+                        int v  = clamp((gray.getRGB(px, py) & 0xFF) + peso);
+                        if (v > max) max = v;
+                    }
+                }
+                out.setRGB(x, y, 0xFF000000 | (max << 16) | (max << 8) | max);
+            }
+        }
+        return out;
+    }
+
+    // Erosão em tons de cinza: para cada pixel, subtrai o peso do elemento
+    // estruturante do valor do pixel correspondente e mantém o mínimo
+    public static BufferedImage erosao(BufferedImage img) {
+        BufferedImage gray = grayscale(img);
+        int w = gray.getWidth(), h = gray.getHeight();
+        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                int min = 255;
+                for (int ky = -1; ky <= 1; ky++) {
+                    for (int kx = -1; kx <= 1; kx++) {
+                        int peso = ELEMENTO_ESTRUTURANTE[ky + 1][kx + 1];
+                        if (peso == 0 && !(ky == 0 && kx == 0)) continue;
+
+                        int px = clamp(x + kx, 0, w - 1);
+                        int py = clamp(y + ky, 0, h - 1);
+                        int v  = clamp((gray.getRGB(px, py) & 0xFF) - peso);
+                        if (v < min) min = v;
+                    }
+                }
+                out.setRGB(x, y, 0xFF000000 | (min << 16) | (min << 8) | min);
+            }
+        }
+        return out;
+    }
+
+    // Abertura: erosão seguida de dilatação — remove pequenos detalhes claros/escuros
+    public static BufferedImage abertura(BufferedImage img) {
+        return dilatacao(erosao(img));
+    }
+
+    // Fechamento: dilatação seguida de erosão — preenche pequenas falhas
+    public static BufferedImage fechamento(BufferedImage img) {
+        return erosao(dilatacao(img));
+    }
+
+    // Afinamento (esqueletização): reduz objetos a linhas de 1 pixel de espessura,
+    // preservando a topologia — algoritmo de Zhang-Suen
+    public static BufferedImage afinamento(BufferedImage img) {
+        BufferedImage bin = threshold(img, 128);
+        int w = bin.getWidth(), h = bin.getHeight();
+
+        // Matriz binária: 1 = objeto (pixel preto/tinta), 0 = fundo (branco)
+        int[][] p = new int[h][w];
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+                p[y][x] = (bin.getRGB(x, y) & 0xFF) == 0 ? 1 : 0;  // <-- alterado: preto = objeto
+
+        boolean mudou = true;
+        while (mudou) {
+            mudou = false;
+            mudou |= zhangSuenPasso(p, w, h, true);
+            mudou |= zhangSuenPasso(p, w, h, false);
+        }
+
+        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++) {
+                // objeto remanescente (esqueleto) = preto; fundo = branco
+                int v = (p[y][x] == 1) ? 0 : 255;  // <-- alterado: esqueleto preto sobre fundo branco
+                out.setRGB(x, y, 0xFF000000 | (v << 16) | (v << 8) | v);
+            }
+        return out;
+    }
+
+    // Executa uma sub-iteração do algoritmo de Zhang-Suen.
+    // passo1 = true  -> condições da primeira sub-iteração
+    // passo1 = false -> condições da segunda sub-iteração
+    private static boolean zhangSuenPasso(int[][] p, int w, int h, boolean passo1) {
+        java.util.List<int[]> remover = new java.util.ArrayList<>();
+
+        for (int y = 1; y < h - 1; y++) {
+            for (int x = 1; x < w - 1; x++) {
+                if (p[y][x] != 1) continue;
+
+                // Vizinhos P2..P9 (sentido horário a partir do topo)
+                int p2 = p[y-1][x],   p3 = p[y-1][x+1], p4 = p[y][x+1],  p5 = p[y+1][x+1];
+                int p6 = p[y+1][x],   p7 = p[y+1][x-1], p8 = p[y][x-1],  p9 = p[y-1][x-1];
+                int[] vizinhos = {p2, p3, p4, p5, p6, p7, p8, p9};
+
+                // B(P1) = número de vizinhos com valor 1
+                int b = 0;
+                for (int v : vizinhos) b += v;
+                if (b < 2 || b > 6) continue;
+
+                // A(P1) = número de transições 0->1 na sequência circular
+                int a = 0;
+                for (int i = 0; i < 8; i++) {
+                    if (vizinhos[i] == 0 && vizinhos[(i + 1) % 8] == 1) a++;
+                }
+                if (a != 1) continue;
+
+                if (passo1) {
+                    if (p2 * p4 * p6 != 0) continue;
+                    if (p4 * p6 * p8 != 0) continue;
+                } else {
+                    if (p2 * p4 * p8 != 0) continue;
+                    if (p2 * p6 * p8 != 0) continue;
+                }
+
+                remover.add(new int[]{y, x});
+            }
+        }
+
+        for (int[] pos : remover) p[pos[0]][pos[1]] = 0;
+        return !remover.isEmpty();
+    }
 }

@@ -200,9 +200,18 @@ public class PDI extends JFrame {
         passaAlta.add(item("Canny", e -> canny()));
         filtros.add(passaAlta);
 
+        // Menu Morfologia Matemática
+        JMenu morfologia = menu("Morfologia Matemática");
+        morfologia.add(item("Dilatação", e -> dilatacao()));
+        morfologia.add(item("Erosão",    e -> erosao()));
+        morfologia.add(item("Abertura",  e -> abertura()));
+        morfologia.add(item("Fechamento",e -> fechamento()));
+        morfologia.add(item("Afinamento",e -> afinamento()));
+
         bar.add(arquivo);
         bar.add(transf);
         bar.add(filtros);
+        bar.add(morfologia);
         setJMenuBar(bar);
     }
 
@@ -584,6 +593,42 @@ public class PDI extends JFrame {
         } catch (NumberFormatException e) {
             JOptionPane.showMessageDialog(this, "Digite valores inteiros válidos.");
         }
+    }
+
+    // =========================================================
+    //  MORFOLOGIA MATEMÁTICA
+    //  Obs.: trabalham sobre a versão binarizada (threshold 128)
+    //        da imagem original, elemento estruturante 3x3 em cruz
+    // =========================================================
+
+    private void dilatacao() {
+        if (semImagem()) return;
+        imgTransformada = Opcoes.dilatacao(imgOriginal);
+        mostrar("Morfologia — Dilatação");
+    }
+
+    private void erosao() {
+        if (semImagem()) return;
+        imgTransformada = Opcoes.erosao(imgOriginal);
+        mostrar("Morfologia — Erosão");
+    }
+
+    private void abertura() {
+        if (semImagem()) return;
+        imgTransformada = Opcoes.abertura(imgOriginal);
+        mostrar("Morfologia — Abertura");
+    }
+
+    private void fechamento() {
+        if (semImagem()) return;
+        imgTransformada = Opcoes.fechamento(imgOriginal);
+        mostrar("Morfologia — Fechamento");
+    }
+
+    private void afinamento() {
+        if (semImagem()) return;
+        imgTransformada = Opcoes.afinamento(imgOriginal);
+        mostrar("Morfologia — Afinamento (Zhang-Suen)");
     }
 
     // ── Main ──────────────────────────────────────────────────────
