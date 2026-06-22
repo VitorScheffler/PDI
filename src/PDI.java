@@ -1,6 +1,9 @@
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.border.*;
@@ -208,10 +211,19 @@ public class PDI extends JFrame {
         morfologia.add(item("Fechamento",e -> fechamento()));
         morfologia.add(item("Afinamento",e -> afinamento()));
 
+        // Menu Exercícios
+        JMenu exercicios = menu("Exercícios");
+        exercicios.add(item("1 - Relógio Analógico",        e -> exercicio1()));
+        exercicios.add(item("2 - Contagem de Cores",        e -> exercicio2()));
+        // exercicios.add(item("3 - Reconhecimento de Letras", e -> exercicio3()));
+        exercicios.add(item("4 - Placas de Trânsito",       e -> exercicio4()));
+        exercicios.add(item("5 - Comparação de Barras",     e -> exercicio5()));
+
         bar.add(arquivo);
         bar.add(transf);
         bar.add(filtros);
         bar.add(morfologia);
+        bar.add(exercicios);
         setJMenuBar(bar);
     }
 
@@ -244,9 +256,41 @@ public class PDI extends JFrame {
     private void mostrar(String descricao) {
         lblOriginal.setText(null);
         lblTransf.setText(null);
-        lblTransf.setIcon(new ImageIcon(imgTransformada));
+
+        lblOriginal.setIcon(new ImageIcon(escalarParaCaber(imgOriginal, lblOriginal)));
+        lblTransf.setIcon(new ImageIcon(escalarParaCaber(imgTransformada, lblTransf)));
+
         infoTransf.setText(descricao + "  ·  " +
                 imgTransformada.getWidth() + " × " + imgTransformada.getHeight() + " px");
+    }
+
+    // Escala a imagem para caber dentro da área visível do label, mantendo proporção
+    private BufferedImage escalarParaCaber(BufferedImage img, JLabel label) {
+        Container viewport = label.getParent(); // o viewport do JScrollPane
+        int larguraDisp = viewport != null ? viewport.getWidth()  : 500;
+        int alturaDisp  = viewport != null ? viewport.getHeight() : 500;
+
+        if (larguraDisp <= 0) larguraDisp = 500;
+        if (alturaDisp  <= 0) alturaDisp  = 500;
+
+        double escala = Math.min(
+                (double) larguraDisp / img.getWidth(),
+                (double) alturaDisp  / img.getHeight());
+
+        // Não amplia imagens pequenas, só reduz as grandes
+        if (escala >= 1.0) return img;
+
+        int novaLargura = Math.max(1, (int) (img.getWidth()  * escala));
+        int novaAltura  = Math.max(1, (int) (img.getHeight() * escala));
+
+        BufferedImage redimensionada = new BufferedImage(novaLargura, novaAltura, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = redimensionada.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.drawImage(img, 0, 0, novaLargura, novaAltura, null);
+        g2.dispose();
+
+        return redimensionada;
     }
 
     // Pede um número decimal ao usuário via caixa de diálogo
@@ -275,10 +319,9 @@ public class PDI extends JFrame {
         try {
             imgOriginal = ImageIO.read(c.getSelectedFile());
             lblOriginal.setText(null);
-            lblOriginal.setIcon(new ImageIcon(imgOriginal));
+            lblOriginal.setIcon(new ImageIcon(escalarParaCaber(imgOriginal, lblOriginal)));
             infoOriginal.setText(c.getSelectedFile().getName() +
                     "  ·  " + imgOriginal.getWidth() + " × " + imgOriginal.getHeight() + " px");
-            // Começa com a transformada igual à original
             imgTransformada = imgOriginal;
             mostrar("Original");
         } catch (Exception e) {
@@ -629,6 +672,67 @@ public class PDI extends JFrame {
         if (semImagem()) return;
         imgTransformada = Opcoes.afinamento(imgOriginal);
         mostrar("Morfologia — Afinamento (Zhang-Suen)");
+    }
+
+    // =========================================================
+    //  EXERCÍCIOS RESOLVIDOS
+    // =========================================================
+
+    private void exercicio1() {
+        if (semImagem()) return;
+        String resultado = Exercicios.lerRelogio(imgOriginal);
+        JOptionPane.showMessageDialog(this,
+                "Horário identificado: " + resultado,
+                "Exercício 1 — Relógio Analógico",
+                JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void exercicio2() {
+        if (semImagem()) return;
+        String resultado = Exercicios.contarObjetosPorCor(imgOriginal);
+        JOptionPane.showMessageDialog(this,
+                resultado,
+                "Exercício 2 — Contagem de Objetos por Cor",
+                JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    // private void exercicio3() {
+    //     if (semImagem()) return;
+
+    //     // Carrega templates das letras a partir de imagens na pasta
+    //     // "templates/" do projeto (uma imagem por letra: A.png, B.png, ...)
+    //     Map<Character, BufferedImage> templates = carregarTemplatesLetras();
+    //     if (templates.isEmpty()) {
+    //         JOptionPane.showMessageDialog(this,
+    //                 "Nenhum template de letra encontrado na pasta 'templates/'.\n" +
+    //                 "Adicione imagens A.png a Z.png nessa pasta para habilitar o reconhecimento.",
+    //                 "Exercício 3 — Templates não encontrados", JOptionPane.WARNING_MESSAGE);
+    //         return;
+    //     }
+
+    //     String resultado = Exercicios.identificarLetras(imgOriginal, templates);
+    //     JOptionPane.showMessageDialog(this,
+    //             "Letras identificadas: " + resultado,
+    //             "Exercício 3 — Reconhecimento de Letras",
+    //             JOptionPane.INFORMATION_MESSAGE);
+    // }
+
+    private void exercicio4() {
+        if (semImagem()) return;
+        String resultado = Exercicios.identificarPlacas(imgOriginal);
+        JOptionPane.showMessageDialog(this,
+                "Placas identificadas: " + resultado,
+                "Exercício 4 — Placas de Trânsito",
+                JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void exercicio5() {
+        if (semImagem()) return;
+        String resultado = Exercicios.compararBarras(imgOriginal);
+        JOptionPane.showMessageDialog(this,
+                resultado,
+                "Exercício 5 — Comparação de Barras",
+                JOptionPane.INFORMATION_MESSAGE);
     }
 
     // ── Main ──────────────────────────────────────────────────────

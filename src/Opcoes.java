@@ -452,7 +452,7 @@ public class Opcoes {
         return out;
     }
 
-// =========================================================
+    // =========================================================
     //  MORFOLOGIA MATEMÁTICA (escala de cinza)
     // =========================================================
 
@@ -601,4 +601,5 @@ public class Opcoes {
         for (int[] pos : remover) p[pos[0]][pos[1]] = 0;
         return !remover.isEmpty();
     }
+    
 }
