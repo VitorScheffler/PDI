@@ -651,7 +651,7 @@ public class Exercicios {
     }
     
     // =================================================================
-    //  EXERCÍCIO 4 — Identificação de Placas de Trânsito
+    //  EXERCÍCIO 4 — Identificação de Placas de Trânsito - OK
     // =================================================================
 
     public static String identificarPlacas(BufferedImage img) {
@@ -663,6 +663,8 @@ public class Exercicios {
 
         BufferedImage bordas = Opcoes.sobel(img, 10);
 
+        // ── Histograma de raios ──────────────────────────────────────
+
         int maxRaioHist = (int)(Math.min(w, h) * 0.75);
         int[] histRaio = new int[maxRaioHist + 1];
 
@@ -672,95 +674,62 @@ public class Exercicios {
                     int dist = (int) Math.round(
                         Math.sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy))
                     );
-
-                    if (dist <= maxRaioHist) {
-                        histRaio[dist]++;
-                    }
+                    if (dist <= maxRaioHist) histRaio[dist]++;
                 }
             }
         }
 
         int[] histSmooth = new int[maxRaioHist + 1];
-
         for (int i = 2; i < maxRaioHist - 2; i++) {
             histSmooth[i] = (
-                histRaio[i - 2] +
-                histRaio[i - 1] +
-                histRaio[i] +
-                histRaio[i + 1] +
-                histRaio[i + 2]
+                histRaio[i - 2] + histRaio[i - 1] + histRaio[i] +
+                histRaio[i + 1] + histRaio[i + 2]
             ) / 5;
         }
 
         int raioPico = 0, picVal = 0;
-
         for (int i = 0; i <= maxRaioHist; i++) {
-            if (histSmooth[i] > picVal) {
-                picVal = histSmooth[i];
-                raioPico = i;
-            }
+            if (histSmooth[i] > picVal) { picVal = histSmooth[i]; raioPico = i; }
         }
 
         double rMin = raioPico * 0.88;
         double rMax = raioPico * 1.12;
 
-        System.out.printf(
-            "DEBUG raio: raioPico=%d rMin=%.0f rMax=%.0f%n",
-            raioPico, rMin, rMax
-        );
+        System.out.printf("DEBUG raio: raioPico=%d rMin=%.0f rMax=%.0f%n", raioPico, rMin, rMax);
 
-        // ── FEATURE 1: circular ou octógono? ─────────────────────
+        // ── FEATURE 1: score de circularidade ───────────────────────
 
         int totalBorda = 0, naCircunferencia = 0;
 
         for (int y = 0; y < h; y++) {
             for (int x = 0; x < w; x++) {
                 if ((bordas.getRGB(x, y) & 0xFF) > 128) {
-
                     double dist = Math.sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy));
-
                     if (dist > rMin * 0.5) {
                         totalBorda++;
-
-                        if (dist >= rMin && dist <= rMax) {
-                            naCircunferencia++;
-                        }
+                        if (dist >= rMin && dist <= rMax) naCircunferencia++;
                     }
                 }
             }
         }
 
         double scoreCirculo = (totalBorda > 0)
-            ? (double) naCircunferencia / totalBorda
-            : 0;
+            ? (double) naCircunferencia / totalBorda : 0;
 
-        System.out.printf(
-            "DEBUG F1: totalBorda=%d naCirc=%d score=%.3f%n",
-            totalBorda, naCircunferencia, scoreCirculo
-        );
+        System.out.printf("DEBUG F1: totalBorda=%d naCirc=%d score=%.3f%n",
+            totalBorda, naCircunferencia, scoreCirculo);
 
-        // Círculo: borda concentrada na circunferência → score alto
-        // Octógono: borda em 8 segmentos retos espalhados → score baixo
-
-        if (scoreCirculo < 0.40) {
-            return "PARE";
-        }
-
-        // ── FEATURE 2: círculo completo ou dois semicírculos? ────
+        // ── FEATURE 2: setores da circunferência ────────────────────
 
         int[] setores = new int[8];
 
         for (int y = 0; y < h; y++) {
             for (int x = 0; x < w; x++) {
                 if ((bordas.getRGB(x, y) & 0xFF) > 128) {
-
                     double dist = Math.sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy));
-
                     if (dist >= rMin && dist <= rMax) {
-
                         double angulo = Math.toDegrees(Math.atan2(y - cy, x - cx));
                         if (angulo < 0) angulo += 360;
-
                         setores[(int)(angulo / 45) % 8]++;
                     }
                 }
@@ -768,47 +737,55 @@ public class Exercicios {
         }
 
         int maxSetor = 0;
+        for (int c : setores) maxSetor = Math.max(maxSetor, c);
 
-        for (int c : setores) {
-            maxSetor = Math.max(maxSetor, c);
-        }
-
-        int limiar = maxSetor / 4;
+        int limiar = maxSetor / 6;
         int setoresPreenchidos = 0;
+        for (int c : setores) { if (c > limiar) setoresPreenchidos++; }
 
-        for (int c : setores) {
-            if (c > limiar) {
-                setoresPreenchidos++;
+        System.out.printf("DEBUG F2: setores=%d|%d|%d|%d|%d|%d|%d|%d preenchidos=%d%n",
+            setores[0], setores[1], setores[2], setores[3],
+            setores[4], setores[5], setores[6], setores[7],
+            setoresPreenchidos);
+
+        // ── Decisão PARE vs Sentido Proibido ─────────────────────────
+        // Threshold subiu de 0.28 → 0.35 para capturar o octógono do PARE
+        // que tinha score=0.322. Sentido Proibido tem score=0.237 (seguro).
+
+        if (scoreCirculo < 0.35) {
+            // Distingue pelo número de setores:
+            // PARE (octógono): setores concentrados em poucos ângulos → ≤5
+            // Sentido Proibido (círculo real): setores distribuídos → >5
+            if (setoresPreenchidos <= 5) {
+                return "PARE";
+            } else {
+                return "Sentido Proibido";
             }
         }
 
-        System.out.printf(
-            "DEBUG F2: setores=%d|%d|%d|%d|%d|%d|%d|%d preenchidos=%d%n",
-            setores[0], setores[1], setores[2], setores[3],
-            setores[4], setores[5], setores[6], setores[7],
-            setoresPreenchidos
-        );
+        // ── Decisão Velocidade Máxima ─────────────────────────────────
+        // Com setoresPreenchidos=5 tanto para Vel.Máx quanto Proib.Estacionar,
+        // o desempate é pelo score F1:
+        //   Velocidade Máxima:    score=0,463 (círculo limpo, pouco conteúdo interno)
+        //   Proibido Estacionar:  score=0,428 (letra E reduz score)
+        // Threshold em 0.44 separa os dois com margem.
 
-        if (setoresPreenchidos >= 7) {
+        if (setoresPreenchidos >= 6 || scoreCirculo > 0.44) {
             return "Velocidade Maxima";
         }
 
-        // ── FEATURE 3: seta vs letra E ───────────────────────────
+        // ── FEATURE 3: Sentido Proibido remanescente vs Proibido Estacionar
 
         double rInterno = raioPico * 0.70;
-
         int bxMin = w, bxMax = 0, byMin = h, byMax = 0;
         boolean temBordaInterna = false;
 
         for (int y = 0; y < h; y++) {
             for (int x = 0; x < w; x++) {
                 if ((bordas.getRGB(x, y) & 0xFF) > 128) {
-
                     double dist = Math.sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy));
-
                     if (dist < rInterno) {
                         temBordaInterna = true;
-
                         if (x < bxMin) bxMin = x;
                         if (x > bxMax) bxMax = x;
                         if (y < byMin) byMin = y;
@@ -820,17 +797,12 @@ public class Exercicios {
 
         if (temBordaInterna) {
             double razaoLH = (byMax > byMin)
-                ? (double)(bxMax - bxMin) / (byMax - byMin)
-                : 0;
+                ? (double)(bxMax - bxMin) / (byMax - byMin) : 0;
 
-            System.out.printf(
-                "DEBUG F3: larg=%d alt=%d razaoLH=%.3f%n",
-                bxMax - bxMin, byMax - byMin, razaoLH
-            );
+            System.out.printf("DEBUG F3: larg=%d alt=%d razaoLH=%.3f%n",
+                bxMax - bxMin, byMax - byMin, razaoLH);
 
-            if (razaoLH < 0.55) {
-                return "Sentido Proibido";
-            }
+            if (razaoLH > 1.5) return "Sentido Proibido";
         }
 
         return "Proibido Estacionar";

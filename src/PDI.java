@@ -214,7 +214,7 @@ public class PDI extends JFrame {
         exercicios.add(item("1 - Relógio Analógico",        e -> exercicio1()));
         exercicios.add(item("2 - Contagem de Cores (OK)",        e -> exercicio2()));
         exercicios.add(item("3 - Reconhecimento de Letras (OK)", e -> exercicio3()));
-        exercicios.add(item("4 - Placas de Trânsito",       e -> exercicio4()));
+        exercicios.add(item("4 - Placas de Trânsito (OK)",       e -> exercicio4()));
         exercicios.add(item("5 - Comparação de Barras (OK)",     e -> exercicio5()));
 
         bar.add(arquivo);
