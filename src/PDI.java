@@ -1,8 +1,6 @@
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
