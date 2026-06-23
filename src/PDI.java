@@ -215,7 +215,7 @@ public class PDI extends JFrame {
         JMenu exercicios = menu("Exercícios");
         exercicios.add(item("1 - Relógio Analógico",        e -> exercicio1()));
         exercicios.add(item("2 - Contagem de Cores (OK)",        e -> exercicio2()));
-        exercicios.add(item("3 - Reconhecimento de Letras", e -> exercicio3()));
+        exercicios.add(item("3 - Reconhecimento de Letras (OK)", e -> exercicio3()));
         exercicios.add(item("4 - Placas de Trânsito",       e -> exercicio4()));
         exercicios.add(item("5 - Comparação de Barras (OK)",     e -> exercicio5()));
 
@@ -698,10 +698,10 @@ public class PDI extends JFrame {
 
     private void exercicio3() {
         if (semImagem()) return;
-        String resultado = Exercicios.reconhecerLetras(imgOriginal);
+        String resultado = Exercicios.identificarLetras(imgOriginal);
         JOptionPane.showMessageDialog(this,
-                "Letras reconhecidas: " + resultado,
-                "Exercício 3 — Reconhecimento de Letras",
+                "Letras identificadas: " + resultado,
+                "Exercício 3 — Identificação de Letras",
                 JOptionPane.INFORMATION_MESSAGE);
     }
 
