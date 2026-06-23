@@ -114,130 +114,128 @@ public class Exercicios {
     //  EXERCÍCIO 1 — Leitura de horário em relógio analógico
     // =========================================================
 
-public static String lerRelogio(BufferedImage img) {
+    public static String lerRelogio(BufferedImage img) {
 
-    // 1. Binarizar
-    BufferedImage bin = Opcoes.threshold(img, 128);
-    int w = bin.getWidth();
-    int h = bin.getHeight();
+        // 1. Binarizar
+        BufferedImage bin = Opcoes.threshold(img, 128);
+        int w = bin.getWidth();
+        int h = bin.getHeight();
 
-    // Centro do relógio
-    int cx = w / 2;
-    int cy = h / 2;
-    double raio = Math.min(w, h) / 2.0;
+        // Centro do relógio
+        int cx = w / 2;
+        int cy = h / 2;
+        double raio = Math.min(w, h) / 2.0;
 
-    // 2. Rotular componentes conectados
-    int[][] rotulo = rotular(bin);
-    int numRotulos = contarRotulos(rotulo);
+        // 2. Rotular componentes conectados
+        int[][] rotulo = rotular(bin);
+        int numRotulos = contarRotulos(rotulo);
 
-    // 3. Para cada componente, calcular propriedades
-    // Acumuladores para PCA e comprimento
-    long[] somaX   = new long[numRotulos + 1];
-    long[] somaY   = new long[numRotulos + 1];
-    long[] somaXX  = new long[numRotulos + 1];
-    long[] somaYY  = new long[numRotulos + 1];
-    long[] somaXY  = new long[numRotulos + 1];
-    int[]  tamanho = new int[numRotulos + 1];
+        // 3. Para cada componente, calcular propriedades
+        // Acumuladores para PCA e comprimento
+        long[] somaX   = new long[numRotulos + 1];
+        long[] somaY   = new long[numRotulos + 1];
+        long[] somaXX  = new long[numRotulos + 1];
+        long[] somaYY  = new long[numRotulos + 1];
+        long[] somaXY  = new long[numRotulos + 1];
+        int[]  tamanho = new int[numRotulos + 1];
 
-    for (int y = 0; y < h; y++) {
-        for (int x = 0; x < w; x++) {
-            int r = rotulo[y][x];
-            if (r == 0) continue;
-            somaX[r]  += x;
-            somaY[r]  += y;
-            somaXX[r] += (long) x * x;
-            somaYY[r] += (long) y * y;
-            somaXY[r] += (long) x * y;
-            tamanho[r]++;
-        }
-    }
-
-    // 4. Filtrar: só componentes que passam pelo centro
-    //    e têm tamanho mínimo razoável
-    int    melhorR1 = -1, melhorR2 = -1;
-    double compR1   =  0, compR2   =  0;
-
-    for (int r = 1; r <= numRotulos; r++) {
-        int n = tamanho[r];
-
-        // Ignora componentes muito pequenos ou muito grandes
-        if (n < 30 || n > (int)(raio * raio * 0.5)) continue;
-
-        double mX = (double) somaX[r] / n;
-        double mY = (double) somaY[r] / n;
-
-        // Distância do centróide ao centro do relógio
-        double distCentro = Math.sqrt((mX - cx) * (mX - cx) + (mY - cy) * (mY - cy));
-
-        // Ponteiros têm centróide próximo ao centro (não é número ou borda)
-        if (distCentro > raio * 0.45) continue;
-
-        // 5. PCA: calcular eixo principal do componente
-        double cxx = (double) somaXX[r] / n - mX * mX;
-        double cyy = (double) somaYY[r] / n - mY * mY;
-        double cxy = (double) somaXY[r] / n - mX * mY;
-
-        // Razão de aspecto via autovalores — ponteiro deve ser alongado
-        double trace = cxx + cyy;
-        double det   = cxx * cyy - cxy * cxy;
-        double disc  = Math.sqrt(Math.max(0, trace * trace / 4 - det));
-        double lambda1 = trace / 2 + disc; // maior autovalor
-        double lambda2 = trace / 2 - disc; // menor autovalor
-
-        // Proporção: ponteiro tem lambda1 >> lambda2
-        if (lambda2 < 1 || lambda1 / lambda2 < 3.0) continue;
-
-        // Ângulo do eixo principal (em graus, 0 = 12h, sentido horário)
-        double angRad = Math.atan2(cxy, lambda1 - cyy);
-        double angGraus = Math.toDegrees(angRad);
-
-        // Normaliza para 0–360 a partir do 12 (eixo Y negativo)
-        // atan2 retorna ângulo do vetor (cxy, lambda1-cyy)
-        // precisamos o ângulo em relação ao topo
-        double angFinal = (angGraus + 90 + 360) % 360;
-        // Ponteiro pode apontar nos dois sentidos: pega o que faz mais sentido
-        // (entre angFinal e angFinal+180)
-
-        // Comprimento: distância máxima do centróide a um pixel do componente
-        double compMax = 0;
         for (int y = 0; y < h; y++) {
             for (int x = 0; x < w; x++) {
-                if (rotulo[y][x] != r) continue;
-                double dx = x - mX;
-                double dy = y - mY;
-                double d  = Math.sqrt(dx * dx + dy * dy);
-                if (d > compMax) compMax = d;
+                int r = rotulo[y][x];
+                if (r == 0) continue;
+                somaX[r]  += x;
+                somaY[r]  += y;
+                somaXX[r] += (long) x * x;
+                somaYY[r] += (long) y * y;
+                somaXY[r] += (long) x * y;
+                tamanho[r]++;
             }
         }
 
-        // Guarda os dois maiores (serão hora e minuto)
-        if (compMax > compR1) {
-            compR2 = compR1; melhorR2 = melhorR1;
-            compR1 = compMax; melhorR1 = r;
-        } else if (compMax > compR2) {
-            compR2 = compMax; melhorR2 = r;
+        // 4. Filtrar: só componentes que passam pelo centro
+        //    e têm tamanho mínimo razoável
+        int    melhorR1 = -1, melhorR2 = -1;
+        double compR1   =  0, compR2   =  0;
+
+        for (int r = 1; r <= numRotulos; r++) {
+            int n = tamanho[r];
+
+            // Ignora componentes muito pequenos ou muito grandes
+            if (n < 30 || n > (int)(raio * raio * 0.5)) continue;
+
+            double mX = (double) somaX[r] / n;
+            double mY = (double) somaY[r] / n;
+
+            // Distância do centróide ao centro do relógio
+            double distCentro = Math.sqrt((mX - cx) * (mX - cx) + (mY - cy) * (mY - cy));
+
+            // Ponteiros têm centróide próximo ao centro (não é número ou borda)
+            if (distCentro > raio * 0.45) continue;
+
+            // 5. PCA: calcular eixo principal do componente
+            double cxx = (double) somaXX[r] / n - mX * mX;
+            double cyy = (double) somaYY[r] / n - mY * mY;
+            double cxy = (double) somaXY[r] / n - mX * mY;
+
+            // Razão de aspecto via autovalores — ponteiro deve ser alongado
+            double trace = cxx + cyy;
+            double det   = cxx * cyy - cxy * cxy;
+            double disc  = Math.sqrt(Math.max(0, trace * trace / 4 - det));
+            double lambda1 = trace / 2 + disc; // maior autovalor
+            double lambda2 = trace / 2 - disc; // menor autovalor
+
+            // Proporção: ponteiro tem lambda1 >> lambda2
+            if (lambda2 < 1 || lambda1 / lambda2 < 3.0) continue;
+
+            // Ângulo do eixo principal (em graus, 0 = 12h, sentido horário)
+            double angRad = Math.atan2(cxy, lambda1 - cyy);
+            double angGraus = Math.toDegrees(angRad);
+
+            // Normaliza para 0–360 a partir do 12 (eixo Y negativo)
+            // atan2 retorna ângulo do vetor (cxy, lambda1-cyy)
+            // precisamos o ângulo em relação ao topo
+            double angFinal = (angGraus + 90 + 360) % 360;
+            // Ponteiro pode apontar nos dois sentidos: pega o que faz mais sentido
+            // (entre angFinal e angFinal+180)
+
+            // Comprimento: distância máxima do centróide a um pixel do componente
+            double compMax = 0;
+            for (int y = 0; y < h; y++) {
+                for (int x = 0; x < w; x++) {
+                    if (rotulo[y][x] != r) continue;
+                    double dx = x - mX;
+                    double dy = y - mY;
+                    double d  = Math.sqrt(dx * dx + dy * dy);
+                    if (d > compMax) compMax = d;
+                }
+            }
+
+            // Guarda os dois maiores (serão hora e minuto)
+            if (compMax > compR1) {
+                compR2 = compR1; melhorR2 = melhorR1;
+                compR1 = compMax; melhorR1 = r;
+            } else if (compMax > compR2) {
+                compR2 = compMax; melhorR2 = r;
+            }
         }
+
+        if (melhorR1 == -1 || melhorR2 == -1)
+            return "Não foi possível identificar os ponteiros.";
+
+        // 6. Calcular ângulo de cada ponteiro usando PCA
+        double angMinuto = calcularAngulo(bin, rotulo, melhorR1, cx, cy); // maior = minuto
+        double angHora   = calcularAngulo(bin, rotulo, melhorR2, cx, cy); // menor = hora
+
+        // 7. Converter ângulos em hora e minuto
+        int hora = (int) Math.round(angHora / 30.0);
+        if (hora == 0 || hora > 12) hora = hora == 0 ? 12 : hora % 12;
+
+        int minIdx = (int) Math.round(angMinuto / 30.0) % 12;
+        int minuto = minIdx * 5;
+
+        return String.format("%02d:%02d", hora, minuto);
     }
-
-    if (melhorR1 == -1 || melhorR2 == -1)
-        return "Não foi possível identificar os ponteiros.";
-
-    // 6. Calcular ângulo de cada ponteiro usando PCA
-    double angMinuto = calcularAngulo(bin, rotulo, melhorR1, cx, cy); // maior = minuto
-    double angHora   = calcularAngulo(bin, rotulo, melhorR2, cx, cy); // menor = hora
-
-    // 7. Converter ângulos em hora e minuto
-    int hora = (int) Math.round(angHora / 30.0);
-    if (hora == 0 || hora > 12) hora = hora == 0 ? 12 : hora % 12;
-
-    int minIdx = (int) Math.round(angMinuto / 30.0) % 12;
-    int minuto = minIdx * 5;
-
-    return String.format("%02d:%02d", hora, minuto);
-}
-
-// Calcula o ângulo do ponteiro (0=12h, sentido horário) via PCA
-private static double calcularAngulo(
+    private static double calcularAngulo(
         BufferedImage bin, int[][] rotulo, int r, int cx, int cy) {
 
     int n = 0;
@@ -283,8 +281,9 @@ private static double calcularAngulo(
 
     return (finalAng + 360) % 360;
 }
+    
     // =========================================================
-    //  EXERCÍCIO 2 — Contagem de objetos coloridos por cor
+    //  EXERCÍCIO 2 — Contagem de objetos coloridos por cor - OK
     // =========================================================
 
     public static String contarObjetosPorCor(BufferedImage img) {
@@ -404,234 +403,184 @@ private static double calcularAngulo(
         return total == 0 ? 0 : (double) iguais / total;
     }
 
-    // =========================================================
-    //  EXERCÍCIO 4 — Identificação de tipos de placas de trânsito
-    // =========================================================
+// =================================================================
+    //  EXERCÍCIO 4 — Identificação de Placas de Trânsito
+    //
+    //  Lógica em cascata (3 features):
+    //
+    //  Feature 1 — razaoTopo: largura do vermelho no y+10% / y+30%
+    //    PARE (octógono): lado reto no topo → não alarga rápido → > 1.50
+    //    Círculos:        arco curvo        → alarga rapidamente → < 1.35
+    //
+    //  Feature 2 — pctDiag: % de vermelho na diagonal interna (↘ e ↗)
+    //    Sentido Proibido: interior preenchido de vermelho → ~67%
+    //    Demais:           só a borda vermelha             → ~7-11%
+    //
+    //  Feature 3 — razaoLH: largura / altura da bbox dos pixels pretos
+    //    Proibido Estacionar: letra E = alta e estreita → < 0.40
+    //    Velocidade Máxima:   números = mais largos     → ≥ 0.40
+    // =================================================================
 
     public static String identificarPlacas(BufferedImage img) {
-        List<int[]> regioes = segmentarRegioes(img);
-        if (regioes.isEmpty()) return "Nenhuma placa encontrada.";
-        List<String> resultados = new ArrayList<>();
-        for (int[] reg : regioes)
-            resultados.add(classificarPlaca(
-                img.getSubimage(reg[0], reg[1], reg[2], reg[3])));
-        return String.join(", ", resultados);
-    }
-    private static List<int[]> segmentarRegioes(BufferedImage img) {
-        int w = img.getWidth(), h = img.getHeight();
-        boolean[][] marcado  = new boolean[h][w];
-        boolean[][] visitado = new boolean[h][w];
-        for (int y = 0; y < h; y++)
-            for (int x = 0; x < w; x++)
-                if (!ehFundoBranco(img.getRGB(x, y))) marcado[y][x] = true;
+        int w  = img.getWidth();
+        int h  = img.getHeight();
+        int cx = w / 2;
+        int cy = h / 2;
 
-        List<int[]> regioes = new ArrayList<>();
-        for (int y = 0; y < h; y++)
-            for (int x = 0; x < w; x++)
-                if (marcado[y][x] && !visitado[y][x]) {
-                    int[] bb = bfs(marcado, visitado, x, y, w, h);
-                    if ((bb[2]-bb[0]+1)>30 && (bb[3]-bb[1]+1)>30)
-                        regioes.add(new int[]{bb[0],bb[1],bb[2]-bb[0]+1,bb[3]-bb[1]+1});
-                }
-        return mesclarRegioes(regioes, 20);
-    }
-    private static int[] bfs(boolean[][] marcado, boolean[][] visitado,
-                              int sx, int sy, int w, int h) {
-        Queue<int[]> q = new LinkedList<>();
-        q.add(new int[]{sx,sy}); visitado[sy][sx]=true;
-        int x0=sx,y0=sy,x1=sx,y1=sy;
-        int[] dx={-1,1,0,0}, dy={0,0,-1,1};
-        while(!q.isEmpty()){
-            int[] p=q.poll(); int cx=p[0],cy=p[1];
-            if(cx<x0)x0=cx; if(cx>x1)x1=cx;
-            if(cy<y0)y0=cy; if(cy>y1)y1=cy;
-            for(int d=0;d<4;d++){
-                int nx=cx+dx[d],ny=cy+dy[d];
-                if(nx>=0&&nx<w&&ny>=0&&ny<h&&marcado[ny][nx]&&!visitado[ny][nx]){
-                    visitado[ny][nx]=true; q.add(new int[]{nx,ny});
-                }
-            }
-        }
-        return new int[]{x0,y0,x1,y1};
-    }
-    private static List<int[]> mesclarRegioes(List<int[]> regioes, int gap) {
-        boolean mesclou=true;
-        while(mesclou){
-            mesclou=false;
-            List<int[]> nova=new ArrayList<>();
-            boolean[] usado=new boolean[regioes.size()];
-            for(int i=0;i<regioes.size();i++){
-                if(usado[i]) continue;
-                int[] a=regioes.get(i).clone();
-                for(int j=i+1;j<regioes.size();j++){
-                    if(usado[j]) continue;
-                    int[] b=regioes.get(j);
-                    if((a[0]-gap)<(b[0]+b[2])&&(a[0]+a[2]+gap)>b[0]
-                     &&(a[1]-gap)<(b[1]+b[3])&&(a[1]+a[3]+gap)>b[1]){
-                        int x2=Math.max(a[0]+a[2],b[0]+b[2]);
-                        int y2=Math.max(a[1]+a[3],b[1]+b[3]);
-                        a[0]=Math.min(a[0],b[0]); a[1]=Math.min(a[1],b[1]);
-                        a[2]=x2-a[0]; a[3]=y2-a[1];
-                        usado[j]=true; mesclou=true;
-                    }
-                }
-                nova.add(a);
-            }
-            regioes=nova;
-        }
-        return regioes;
-    }
-    private static String classificarPlaca(BufferedImage img) {
-        int w = img.getWidth(), h = img.getHeight();
+        // ── 1. Bounding box da região vermelha ────────────────────
+        int xmin = w, xmax = 0, ymin = h, ymax = 0;
 
-        // Bounding box do vermelho (contorno da placa)
-        int minX=w,minY=h,maxX=-1,maxY=-1;
-        for(int y=0;y<h;y++) for(int x=0;x<w;x++){
-            int rgb=img.getRGB(x,y);
-            if(ehVermelho(rgb)){
-                if(x<minX)minX=x; if(x>maxX)maxX=x;
-                if(y<minY)minY=y; if(y>maxY)maxY=y;
-            }
-        }
-        if(maxX<0) return "Placa não identificada";
-
-        int bw=maxX-minX+1, bh=maxY-minY+1;
-        int cx=(minX+maxX)/2, cy=(minY+maxY)/2;
-        int raio=Math.min(bw,bh)/2;
-        int rInt=(int)(raio*0.65); // círculo interno — exclui o anel
-
-        // ── PASSO 1: Sentido proibido — interior cheio de vermelho ──────────
-        // É a única placa onde o centro do círculo É vermelho (a seta some no JPEG)
-        long vermInt=0;
-        double areaInt = Math.PI*rInt*rInt;
-        for(int y=cy-rInt;y<=cy+rInt;y++) for(int x=cx-rInt;x<=cx+rInt;x++){
-            if(x<0||x>=w||y<0||y>=h) continue;
-            if(dist(x,y,cx,cy)>rInt) continue;
-            if(ehVermelho(img.getRGB(x,y))) vermInt++;
-        }
-        double ratioVermInt = vermInt/areaInt;
-        if(ratioVermInt > 0.55) return "Sentido proibido";
-
-        // ── PASSO 2: Monta projeção horizontal do escuro interno ─────────────
-        // Conta pixels escuros por coluna (dentro do círculo interno)
-        int[] projH = new int[bw];
-        for(int y=minY;y<=maxY;y++) for(int x=minX;x<=maxX;x++){
-            if(x<0||x>=w||y<0||y>=h) continue;
-            if(dist(x,y,cx,cy)>rInt) continue;
-            if(ehEscuro(img.getRGB(x,y))) projH[x-minX]++;
-        }
-
-        // Suaviza com média móvel (janela 15)
-        double[] projS = suavizar(projH, 15);
-        double picoMax = max(projS);
-        if(picoMax==0) return "Placa não identificada";
-
-        // Conta picos e colunas com escuro significativo
-        int nPicos = contarPicos(projS, picoMax*0.30, 20);
-        int colsComEsc = 0;
-        for(double v : projS) if(v > picoMax*0.10) colsComEsc++;
-        double ratioCols = (double)colsComEsc/bw;
-
-        // ── PASSO 3: PARE — letras P,A,R,E geram muitos picos horizontais ───
-        // 4+ picos = 4 letras separadas; colunas moderadas (não ocupa tudo)
-        if(nPicos >= 4 && ratioCols < 0.35) return "Pare";
-
-        // ── PASSO 4: Proibido estacionar — letra E estreita ──────────────────
-        // E é estreito horizontalmente: 1 pico e poucas colunas
-        if(nPicos <= 1 && ratioCols < 0.28) return "Proibido estacionar";
-
-        // ── PASSO 5: Velocidade máxima — número ocupa mais colunas ──────────
-        return "Velocidade máxima";
-    }
-    private static double dist(int x,int y,int cx,int cy){
-        double dx=x-cx, dy=y-cy;
-        return Math.sqrt(dx*dx+dy*dy);
-    }
-    private static double[] suavizar(int[] arr, int janela) {
-        double[] s = new double[arr.length];
-        for(int i=0;i<arr.length;i++){
-            int cnt=0; double soma=0;
-            for(int j=i-janela/2;j<=i+janela/2;j++)
-                if(j>=0&&j<arr.length){ soma+=arr[j]; cnt++; }
-            s[i]=cnt>0?soma/cnt:0;
-        }
-        return s;
-    }
-    private static double max(double[] arr){
-        double m=0; for(double v:arr) if(v>m)m=v; return m;
-    }
-    private static int contarPicos(double[] arr, double altMin, int distMin){
-        int picos=0; int ultimoPico=-distMin;
-        for(int i=1;i<arr.length-1;i++){
-            if(arr[i]>arr[i-1]&&arr[i]>arr[i+1]
-               &&arr[i]>=altMin&&(i-ultimoPico)>=distMin){
-                picos++; ultimoPico=i;
-            }
-        }
-        return picos;
-    }
-    private static boolean ehFundoBranco(int rgb){
-        int r=(rgb>>16)&0xFF,g=(rgb>>8)&0xFF,b=rgb&0xFF;
-        return r>220&&g>220&&b>220;
-    }
-    private static boolean ehVermelho(int rgb){
-        int r=(rgb>>16)&0xFF,g=(rgb>>8)&0xFF,b=rgb&0xFF;
-        // HSV-like: matiz vermelha (r alto, g e b baixos)
-        return r>150&&g<110&&b<110&&(r-g)>70;
-    }
-    private static boolean ehEscuro(int rgb){
-        int r=(rgb>>16)&0xFF,g=(rgb>>8)&0xFF,b=rgb&0xFF;
-        return r<100&&g<100&&b<100;
-    }
-
-    // =========================================================
-    //  EXERCÍCIO 5 — Maior e menor barra em gráfico de barras
-    // =========================================================
-    public static String compararBarras(BufferedImage img) {
-        int w = img.getWidth(), h = img.getHeight();
-
-        // 1) Encontra a linha de base do gráfico: a linha y mais baixa que
-        // contém algum pixel "não-fundo" em qualquer coluna
-        int linhaBase = -1;
-        for (int y = h - 1; y >= 0; y--) {
+        for (int y = 0; y < h; y++) {
             for (int x = 0; x < w; x++) {
                 int rgb = img.getRGB(x, y);
-                int r = (rgb >> 16) & 0xFF, g = (rgb >> 8) & 0xFF, b = rgb & 0xFF;
-                boolean fundo = (r > 230 && g > 230 && b > 230);
-                if (!fundo) { linhaBase = y; break; }
+                int r = (rgb >> 16) & 0xFF;
+                int g = (rgb >> 8)  & 0xFF;
+                int b =  rgb        & 0xFF;
+                if (r > 180 && g < 80 && b < 80 && r > g + 100) {
+                    if (x < xmin) xmin = x;
+                    if (x > xmax) xmax = x;
+                    if (y < ymin) ymin = y;
+                    if (y > ymax) ymax = y;
+                }
             }
-            if (linhaBase != -1) break;
+        }
+        if (xmax <= xmin) return "Nenhuma placa detectada.";
+
+        int largBbox = xmax - xmin;
+        int altBbox  = ymax - ymin;
+        int raio     = Math.min(largBbox, altBbox) / 2;
+        int passo    = altBbox / 10;
+
+        // ── FEATURE 1: octógono (PARE) vs círculo ─────────────────
+        // Mede largura do vermelho em y+10% e y+30% do topo da bbox.
+        // Octógono tem lado reto → razão alta; círculo curva → razão baixa.
+        int largY10 = larguraVmEmY(img, w, ymin + passo,     0, w);
+        int largY30 = larguraVmEmY(img, w, ymin + passo * 3, 0, w);
+        double razaoTopo = (largY30 > 0) ? (double) largY10 / largY30 : 0;
+
+        if (razaoTopo > 1.50) {
+            return "PARE";
         }
 
-        if (linhaBase == -1) return "Nenhuma barra encontrada.";
+        // ── FEATURE 2: diagonal vermelha interna ──────────────────
+        // Mede % de vermelho nas diagonais ↘ e ↗ dentro do raio.
+        // Sentido Proibido: interior todo vermelho → ~67%.
+        int raioD  = raio * 2 / 3;
+        int diagVm = 0, antiVm = 0, diagTot = 0;
+        for (int i = -raioD; i <= raioD; i += 2) {
+            int px1 = cx + i, py1 = cy + i; // ↘
+            int px2 = cx + i, py2 = cy - i; // ↗
+            if (px1 >= 0 && px1 < w && py1 >= 0 && py1 < h) {
+                int rgb = img.getRGB(px1, py1);
+                int r = (rgb >> 16) & 0xFF, g = (rgb >> 8) & 0xFF, b = rgb & 0xFF;
+                if (r > 180 && g < 80 && b < 80 && r > g + 100) diagVm++;
+                diagTot++;
+            }
+            if (px2 >= 0 && px2 < w && py2 >= 0 && py2 < h) {
+                int rgb = img.getRGB(px2, py2);
+                int r = (rgb >> 16) & 0xFF, g = (rgb >> 8) & 0xFF, b = rgb & 0xFF;
+                if (r > 180 && g < 80 && b < 80 && r > g + 100) antiVm++;
+            }
+        }
+        double pctDiag = (diagTot > 0)
+                ? (double) Math.max(diagVm, antiVm) / diagTot
+                : 0;
 
-        // 2) Para cada coluna, conta a altura da barra a partir da linha de
-        // base, subindo até encontrar fundo
+        if (pctDiag > 0.30) {
+            return "Sentido Proibido";
+        }
+
+        // ── FEATURE 3: largura/altura dos pixels pretos internos ──
+        // Proibido Estacionar: letra E = alta e estreita → razaoLH < 0.40
+        // Velocidade Máxima:   números = mais largos     → razaoLH ≥ 0.40
+        int raioP      = raio * 55 / 100;
+        int dxMinP = raioP, dxMaxP = -raioP;
+        int dyMinP = raioP, dyMaxP = -raioP;
+        boolean temPreto = false;
+
+        for (int dy = -raioP; dy <= raioP; dy++) {
+            for (int dx = -raioP; dx <= raioP; dx++) {
+                if (dx * dx + dy * dy <= raioP * raioP) {
+                    int px = cx + dx, py = cy + dy;
+                    if (px >= 0 && px < w && py >= 0 && py < h) {
+                        int rgb = img.getRGB(px, py);
+                        int r = (rgb >> 16) & 0xFF;
+                        int g = (rgb >> 8)  & 0xFF;
+                        int b =  rgb        & 0xFF;
+                        if (r < 50 && g < 50 && b < 50) {
+                            temPreto = true;
+                            if (dx < dxMinP) dxMinP = dx;
+                            if (dx > dxMaxP) dxMaxP = dx;
+                            if (dy < dyMinP) dyMinP = dy;
+                            if (dy > dyMaxP) dyMaxP = dy;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (temPreto) {
+            int largPreto = dxMaxP - dxMinP;
+            int altPreto  = dyMaxP - dyMinP;
+            double razaoLH = (altPreto > 0) ? (double) largPreto / altPreto : 0;
+            if (razaoLH < 0.40) {
+                return "Proibido Estacionar";
+            }
+        }
+
+        return "Velocidade Maxima";
+    }
+
+    // Conta colunas com pelo menos 1 pixel vermelho na linha y dado
+    private static int larguraVmEmY(BufferedImage img, int w, int y, int xIni, int xFim) {
+        if (y < 0 || y >= img.getHeight()) return 0;
+        int count = 0;
+        for (int x = xIni; x < xFim; x++) {
+            int rgb = img.getRGB(x, y);
+            int r = (rgb >> 16) & 0xFF;
+            int g = (rgb >> 8)  & 0xFF;
+            int b =  rgb        & 0xFF;
+            if (r > 180 && g < 80 && b < 80 && r > g + 100) count++;
+        }
+        return count;
+    }
+    
+    // =========================================================
+    //  EXERCÍCIO 5 — Maior e menor barra em gráfico de barras - OK
+    // =========================================================
+
+    public static String compararBarras(BufferedImage img) {
+        int w = img.getWidth();
+        int h = img.getHeight();
+
+        // 1) Conta pixels da cor da barra em cada coluna
+        //    Critério: R dominante (>200), G e B baixos (<160), R bem maior que G
+        //    Robusto para JPEG (cobre variações de compressão)
         int[] alturaColuna = new int[w];
         for (int x = 0; x < w; x++) {
-            int altura = 0;
-            for (int y = linhaBase; y >= 0; y--) {
+            for (int y = 0; y < h; y++) {
                 int rgb = img.getRGB(x, y);
-                int r = (rgb >> 16) & 0xFF, g = (rgb >> 8) & 0xFF, b = rgb & 0xFF;
-                boolean fundo = (r > 230 && g > 230 && b > 230);
-                if (!fundo) altura++;
-                else break;
+                int r = (rgb >> 16) & 0xFF;
+                int g = (rgb >> 8)  & 0xFF;
+                int b =  rgb        & 0xFF;
+                if (r > 200 && g < 160 && b < 160 && r > g + 60) {
+                    alturaColuna[x]++;
+                }
             }
-            alturaColuna[x] = altura;
         }
 
-        // 3) Agrupa colunas contíguas com altura > 0 em barras distintas,
-        // tolerando pequenas falhas (gaps de poucas colunas)
+        // 2) Agrupa colunas contíguas em barras distintas
+        //    Tolerância de gap evita que bordas arredondadas quebrem uma barra em duas
         List<Integer> alturasBarras = new ArrayList<>();
+        int tolerancia = Math.max(5, w / 100);
         int x = 0;
-        int tolerancia = Math.max(1, w / 200);
 
         while (x < w) {
             if (alturaColuna[x] == 0) { x++; continue; }
 
             int maxAltura = 0;
-            int gapAtual = 0;
-            int inicio = x;
+            int gapAtual  = 0;
+            int inicio    = x;
 
             while (x < w) {
                 if (alturaColuna[x] == 0) {
@@ -639,12 +588,14 @@ private static double calcularAngulo(
                     if (gapAtual > tolerancia) break;
                 } else {
                     gapAtual = 0;
-                    if (alturaColuna[x] > maxAltura) maxAltura = alturaColuna[x];
+                    if (alturaColuna[x] > maxAltura)
+                        maxAltura = alturaColuna[x];
                 }
                 x++;
             }
 
-            if (x - inicio > w / 100) {
+            // Descarta grupos muito estreitos (ruído, bordas)
+            if ((x - inicio) > w / 100) {
                 alturasBarras.add(maxAltura);
             }
         }
@@ -654,7 +605,8 @@ private static double calcularAngulo(
         int maior = Collections.max(alturasBarras);
         int menor = Collections.min(alturasBarras);
 
-        return "Maior = " + maior + " | Menor = " + menor +
-               "  (barras detectadas: " + alturasBarras.size() + ")";
+        return "Maior = " + maior + " | Menor = " + menor
+            + "\nBarras detectadas: " + alturasBarras.size()
+            + "\nAlturas (px): " + alturasBarras;
     }
 }
