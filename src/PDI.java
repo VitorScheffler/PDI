@@ -211,7 +211,7 @@ public class PDI extends JFrame {
 
         // Menu Exercícios
         JMenu exercicios = menu("Exercícios");
-        exercicios.add(item("1 - Relógio Analógico",        e -> exercicio1()));
+        exercicios.add(item("1 - Relógio Analógico (OK)",        e -> exercicio1()));
         exercicios.add(item("2 - Contagem de Cores (OK)",        e -> exercicio2()));
         exercicios.add(item("3 - Reconhecimento de Letras (OK)", e -> exercicio3()));
         exercicios.add(item("4 - Placas de Trânsito (OK)",       e -> exercicio4()));
@@ -693,8 +693,9 @@ public class PDI extends JFrame {
     private void exercicio2() {
         if (semImagem()) return;
         String resultado = Exercicios.contarObjetosPorCor(imgOriginal);
-        JOptionPane.showMessageDialog(this,
-                resultado,
+        imgTransformada = Exercicios.desenharObjetosPorCor(imgOriginal);
+        mostrar("Objetos por cor detectados");
+        JOptionPane.showMessageDialog(this, resultado,
                 "Exercício 2 — Contagem de Objetos por Cor",
                 JOptionPane.INFORMATION_MESSAGE);
     }
@@ -702,6 +703,8 @@ public class PDI extends JFrame {
     private void exercicio3() {
         if (semImagem()) return;
         String resultado = Exercicios.identificarLetras(imgOriginal);
+        imgTransformada = Exercicios.desenharLetras(imgOriginal);
+        mostrar("Letras detectadas");
         JOptionPane.showMessageDialog(this,
                 "Letras identificadas: " + resultado,
                 "Exercício 3 — Identificação de Letras",
@@ -711,8 +714,9 @@ public class PDI extends JFrame {
     private void exercicio4() {
         if (semImagem()) return;
         String resultado = Exercicios.identificarPlacas(imgOriginal);
-        JOptionPane.showMessageDialog(this,
-                "Placas identificadas: " + resultado,
+        imgTransformada = Exercicios.desenharPlacas(imgOriginal, resultado);
+        mostrar("Placa detectada");
+        JOptionPane.showMessageDialog(this, "Placa identificada: " + resultado,
                 "Exercício 4 — Placas de Trânsito",
                 JOptionPane.INFORMATION_MESSAGE);
     }
@@ -720,13 +724,14 @@ public class PDI extends JFrame {
     private void exercicio5() {
         if (semImagem()) return;
         String resultado = Exercicios.compararBarras(imgOriginal);
-        JOptionPane.showMessageDialog(this,
-                resultado,
+        imgTransformada = Exercicios.desenharBarras(imgOriginal);
+        mostrar("Barras detectadas");
+        JOptionPane.showMessageDialog(this, resultado,
                 "Exercício 5 — Comparação de Barras",
                 JOptionPane.INFORMATION_MESSAGE);
     }
-
-    // ── Main ──────────────────────────────────────────────────────
+    
+// ── Main ──────────────────────────────────────────────────────
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> new PDI().setVisible(true));
     }

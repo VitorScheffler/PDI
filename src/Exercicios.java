@@ -114,7 +114,7 @@ public class Exercicios {
     }
 
     // =========================================================
-    //  EXERCÍCIO 1 — Leitura de horário em relógio analógico
+    //  EXERCÍCIO 1 — Leitura de horário em relógio analógico - OK
     // =========================================================
 
     public static class ResultadoRelogio {
@@ -122,7 +122,6 @@ public class Exercicios {
         double anguloMaior, comprimentoMaior; // minutos
         double anguloMenor, comprimentoMenor; // horas
     }
-
     public static ResultadoRelogio detectarPonteiros(BufferedImage img) {
         int w = img.getWidth();
         int h = img.getHeight();
@@ -263,7 +262,6 @@ public class Exercicios {
         r.comprimentoMenor = comprimentoMenor;
         return r;
     }
-
     private static boolean[][] dilatarMascara(boolean[][] mask, int w, int h, int iteracoes) {
         BufferedImage bin = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
         for (int y = 0; y < h; y++)
@@ -281,7 +279,6 @@ public class Exercicios {
 
         return out;
     }
-
     private static int[] encontrarPixelEscuroMaisProximo(boolean[][] escuro, int w, int h,
                                                         int cx, int cy, int raioMax) {
         if (cx >= 0 && cx < w && cy >= 0 && cy < h && escuro[cy][cx]) {
@@ -299,7 +296,6 @@ public class Exercicios {
         }
         return null;
     }
-
     private static List<int[]> floodFillComponente(boolean[][] escuro, int w, int h,
                                                     int startX, int startY) {
         List<int[]> pixels = new ArrayList<>();
@@ -326,7 +322,6 @@ public class Exercicios {
         }
         return pixels;
     }
-
     public static String formatarResultadoRelogio(ResultadoRelogio r) {
         if (r.anguloMenor < 0) {
             return "Não foi possível identificar dois ponteiros distintos.";
@@ -342,7 +337,6 @@ public class Exercicios {
             calcularHorario(r)
         );
     }
-
     public static BufferedImage desenharPonteiros(BufferedImage original, ResultadoRelogio r) {
         BufferedImage out = new BufferedImage(
             original.getWidth(), original.getHeight(), BufferedImage.TYPE_INT_ARGB);
@@ -372,7 +366,6 @@ public class Exercicios {
         g2.dispose();
         return out;
     }
-
     private static void desenharPonteiro(Graphics2D g2, double cx, double cy,
                                         double anguloGraus, double comprimento,
                                         Color cor, String rotulo) {
@@ -394,7 +387,6 @@ public class Exercicios {
         g2.setColor(cor);
         g2.drawString(rotulo, textX, textY);
     }
-
     private static boolean isEscuro(int rgb) {
         int r = (rgb >> 16) & 0xFF;
         int g = (rgb >> 8)  & 0xFF;
@@ -403,7 +395,6 @@ public class Exercicios {
         // a cinzas intermediários (antialiasing / compressão JPEG)
         return (r + g + b) < 380;
     }
-
     public static String calcularHorario(ResultadoRelogio r) {
         if (r.anguloMenor < 0) {
             return "Não foi possível calcular o horário.";
@@ -465,6 +456,63 @@ public class Exercicios {
                 out.setRGB(x, y, 0xFF000000 | (v << 16) | (v << 8) | v);
             }
         }
+        return out;
+    }
+    public static BufferedImage desenharObjetosPorCor(BufferedImage img) {
+        BufferedImage bin = binarizarPorCor(img);
+        int[][] rotulo = rotular(bin);
+        int n = contarRotulos(rotulo);
+
+        BufferedImage out = new BufferedImage(img.getWidth(), img.getHeight(), BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = out.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.drawImage(img, 0, 0, null);
+
+        if (n == 0) { g2.dispose(); return out; }
+
+        int w = img.getWidth(), h = img.getHeight();
+        int[][] cores  = calcularCoresMedias(img, rotulo, n);
+        int[][] bboxes = calcularBoundingBoxes(rotulo, n, w, h);
+
+        g2.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        g2.setStroke(new BasicStroke(2.5f));
+
+        for (int r = 1; r <= n; r++) {
+            String nome = classificarCor(cores[r][0], cores[r][1], cores[r][2]);
+            if (nome == null) continue;
+
+            int minX = bboxes[r][0], minY = bboxes[r][1];
+            int maxX = bboxes[r][2], maxY = bboxes[r][3];
+            int bw = maxX - minX + 1, bh = maxY - minY + 1;
+
+            // Cor de destaque baseada na classificação
+            Color cor = switch (nome) {
+                case "vermelho" -> new Color(220, 50,  50);
+                case "verde"    -> new Color(50,  200, 50);
+                case "azul"     -> new Color(50,  100, 230);
+                case "amarelo"  -> new Color(220, 180, 0);
+                default         -> Color.WHITE;
+            };
+
+            // Bounding box
+            g2.setColor(cor);
+            g2.drawRect(minX, minY, bw, bh);
+
+            // Fundo semitransparente para o label
+            String label = nome + " (RGB " + cores[r][0] + "," + cores[r][1] + "," + cores[r][2] + ")";
+            FontMetrics fm = g2.getFontMetrics();
+            int tw = fm.stringWidth(label) + 6;
+            int th = fm.getHeight();
+            int ly = minY - th - 2 < 0 ? maxY + 4 : minY - 4;
+
+            g2.setColor(new Color(0, 0, 0, 160));
+            g2.fillRoundRect(minX, ly, tw, th + 4, 4, 4);
+
+            g2.setColor(cor);
+            g2.drawString(label, minX + 3, ly + th);
+        }
+
+        g2.dispose();
         return out;
     }
 
@@ -703,7 +751,100 @@ public class Exercicios {
 
         return "Y";
     }
-    
+    public static BufferedImage desenharLetras(BufferedImage img) {
+        BufferedImage bin = Opcoes.threshold(img, 160);
+        int[][] rotulo = rotular(bin);
+        int n = contarRotulos(rotulo);
+
+        BufferedImage out = new BufferedImage(img.getWidth(), img.getHeight(), BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = out.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.drawImage(img, 0, 0, null);
+
+        if (n == 0) { g2.dispose(); return out; }
+
+        int w = bin.getWidth(), h = bin.getHeight();
+        int[][] bbox = calcularBoundingBoxes(rotulo, n, w, h);
+
+        g2.setStroke(new BasicStroke(2));
+        g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
+
+        for (int r = 1; r <= n; r++) {
+            int minX = bbox[r][0], minY = bbox[r][1];
+            int maxX = bbox[r][2], maxY = bbox[r][3];
+            if (minX > maxX || minY > maxY) continue;
+
+            int largura = maxX - minX + 1;
+            int altura  = maxY - minY + 1;
+            int areaImg = w * h;
+            if (largura * altura < areaImg / 200) continue;
+
+            int pad = 4;
+            int subW = largura + 2 * pad, subH = altura + 2 * pad;
+            boolean[][] obj = new boolean[subH][subW];
+            BufferedImage sub = new BufferedImage(subW, subH, BufferedImage.TYPE_INT_RGB);
+            for (int y2 = 0; y2 < subH; y2++)
+                for (int x2 = 0; x2 < subW; x2++)
+                    sub.setRGB(x2, y2, 0xFFFFFF);
+            for (int y2 = minY; y2 <= maxY; y2++)
+                for (int x2 = minX; x2 <= maxX; x2++)
+                    if (rotulo[y2][x2] == r) {
+                        sub.setRGB(x2 - minX + pad, y2 - minY + pad, 0x000000);
+                        obj[y2 - minY + pad][x2 - minX + pad] = true;
+                    }
+
+            int buracos = contarBuracos(obj, subW, subH);
+            BufferedImage esqueletoImg = Opcoes.afinamento(sub);
+            boolean[][] sk = new boolean[subH][subW];
+            for (int y2 = 0; y2 < subH; y2++)
+                for (int x2 = 0; x2 < subW; x2++)
+                    sk[y2][x2] = (esqueletoImg.getRGB(x2, y2) & 0xFF) == 0;
+
+            int espessura = Math.min(largura, altura) / 6;
+            int iteracoes = Math.max(3, Math.min(12, espessura / 2));
+            boolean[][] skPodado = podarEsqueleto(sk, subW, subH, iteracoes);
+            int[] topo = contarExtremidadesEJuncoes(skPodado, subW, subH);
+            int finais = topo[0], juncoes = topo[1];
+
+            int inkEsq = 0, inkDir = 0, meio = subW / 2;
+            for (int y2 = 0; y2 < subH; y2++)
+                for (int x2 = 0; x2 < subW; x2++) {
+                    if (!obj[y2][x2]) continue;
+                    if (x2 < meio) inkEsq++; else inkDir++;
+                }
+            double razaoEsq = (inkEsq + inkDir > 0) ? (double) inkEsq / (inkEsq + inkDir) : 0.5;
+
+            String letra = classificarLetra(r, buracos, finais, juncoes, razaoEsq, largura, altura);
+            if (letra == null) continue;
+
+            // Bounding box em ciano
+            g2.setColor(new Color(0, 200, 220));
+            g2.drawRect(minX, minY, largura, altura);
+
+            // Label com letra e features usadas
+            String info = String.format("%s  bur=%d fin=%d jun=%d  razE=%.2f", letra, buracos, finais, juncoes, razaoEsq);
+            FontMetrics fm = g2.getFontMetrics();
+            int tw = fm.stringWidth(info) + 6;
+            int th = fm.getHeight();
+            int ly = minY - th - 4 < 0 ? maxY + 4 : minY - 4;
+
+            g2.setColor(new Color(0, 0, 0, 170));
+            g2.fillRoundRect(minX, ly, tw, th + 4, 4, 4);
+            g2.setColor(new Color(0, 220, 240));
+            g2.drawString(info, minX + 3, ly + th);
+
+            // Letra grande sobreposta
+            g2.setFont(new Font("Segoe UI", Font.BOLD, Math.max(18, altura / 2)));
+            g2.setColor(new Color(255, 255, 0, 180));
+            g2.drawString(letra, minX + largura / 2 - g2.getFontMetrics().stringWidth(letra) / 2,
+                    minY + altura / 2 + g2.getFontMetrics().getAscent() / 2);
+            g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        }
+
+        g2.dispose();
+        return out;
+    }
+
     // =================================================================
     //  EXERCÍCIO 4 — Identificação de Placas de Trânsito - OK
     // =================================================================
@@ -749,7 +890,13 @@ public class Exercicios {
         double rMin = raioPico * 0.88;
         double rMax = raioPico * 1.12;
 
+        // ── Recalcula centro real da placa ───────────────────────────
+        // O cx/cy inicial era o centro da imagem (chute inicial).
+        // Agora pegamos a média das posições dos pixels que estão
+        // no anel do raio detectado — esse é o centro geométrico real.
+
         System.out.printf("DEBUG raio: raioPico=%d rMin=%.0f rMax=%.0f%n", raioPico, rMin, rMax);
+        System.out.printf("DEBUG centro: cx=%d cy=%d%n", cx, cy);
 
         // ── FEATURE 1: score de circularidade ───────────────────────
 
@@ -803,13 +950,8 @@ public class Exercicios {
             setoresPreenchidos);
 
         // ── Decisão PARE vs Sentido Proibido ─────────────────────────
-        // Threshold subiu de 0.28 → 0.35 para capturar o octógono do PARE
-        // que tinha score=0.322. Sentido Proibido tem score=0.237 (seguro).
 
         if (scoreCirculo < 0.35) {
-            // Distingue pelo número de setores:
-            // PARE (octógono): setores concentrados em poucos ângulos → ≤5
-            // Sentido Proibido (círculo real): setores distribuídos → >5
             if (setoresPreenchidos <= 5) {
                 return "PARE";
             } else {
@@ -818,17 +960,12 @@ public class Exercicios {
         }
 
         // ── Decisão Velocidade Máxima ─────────────────────────────────
-        // Com setoresPreenchidos=5 tanto para Vel.Máx quanto Proib.Estacionar,
-        // o desempate é pelo score F1:
-        //   Velocidade Máxima:    score=0,463 (círculo limpo, pouco conteúdo interno)
-        //   Proibido Estacionar:  score=0,428 (letra E reduz score)
-        // Threshold em 0.44 separa os dois com margem.
 
         if (setoresPreenchidos >= 6 || scoreCirculo > 0.44) {
             return "Velocidade Maxima";
         }
 
-        // ── FEATURE 3: Sentido Proibido remanescente vs Proibido Estacionar
+        // ── FEATURE 3: borda interna — Sentido Proibido vs Proibido Estacionar
 
         double rInterno = raioPico * 0.70;
         int bxMin = w, bxMax = 0, byMin = h, byMax = 0;
@@ -860,6 +997,221 @@ public class Exercicios {
         }
 
         return "Proibido Estacionar";
+    }
+
+    static class ResultadoPlaca {
+        String tipo;
+        double scoreCirculo;
+        int setoresPreenchidos;
+        int[] setores;
+        boolean temBordaInterna;
+        double razaoLH;
+        int bxMin, bxMax, byMin, byMax;
+        int raioPico;
+        int cx, cy;
+    }
+
+    public static BufferedImage desenharPlacas(BufferedImage img, String tipoDetectado) {
+        int w = img.getWidth(), h = img.getHeight();
+        int cx = w / 2, cy = h / 2;
+
+        BufferedImage bordas = Opcoes.sobel(img, 10);
+
+        // ── Recalcula raio pico ──────────────────────────────────────
+        int maxRaioHist = (int)(Math.min(w, h) * 0.75);
+        int[] histRaio = new int[maxRaioHist + 1];
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+                if ((bordas.getRGB(x, y) & 0xFF) > 128) {
+                    int dist = (int) Math.round(Math.sqrt((x-cx)*(x-cx) + (y-cy)*(y-cy)));
+                    if (dist <= maxRaioHist) histRaio[dist]++;
+                }
+        int[] histSmooth = new int[maxRaioHist + 1];
+        for (int i = 2; i < maxRaioHist - 2; i++)
+            histSmooth[i] = (histRaio[i-2] + histRaio[i-1] + histRaio[i] + histRaio[i+1] + histRaio[i+2]) / 5;
+        int raioPico = 0, picVal = 0;
+        for (int i = 0; i <= maxRaioHist; i++)
+            if (histSmooth[i] > picVal) { picVal = histSmooth[i]; raioPico = i; }
+
+        double rMin = raioPico * 0.88, rMax = raioPico * 1.12;
+
+        // ── F1: score de circularidade ───────────────────────────────
+        int totalBorda = 0, naCirc = 0;
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+                if ((bordas.getRGB(x, y) & 0xFF) > 128) {
+                    double dist = Math.sqrt((x-cx)*(x-cx) + (y-cy)*(y-cy));
+                    if (dist > rMin * 0.5) {
+                        totalBorda++;
+                        if (dist >= rMin && dist <= rMax) naCirc++;
+                    }
+                }
+        double scoreCirculo = totalBorda > 0 ? (double) naCirc / totalBorda : 0;
+
+        // ── F2: setores ──────────────────────────────────────────────
+        int[] setores = new int[8];
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+                if ((bordas.getRGB(x, y) & 0xFF) > 128) {
+                    double dist = Math.sqrt((x-cx)*(x-cx) + (y-cy)*(y-cy));
+                    if (dist >= rMin && dist <= rMax) {
+                        double angulo = Math.toDegrees(Math.atan2(y - cy, x - cx));
+                        if (angulo < 0) angulo += 360;
+                        setores[(int)(angulo / 45) % 8]++;
+                    }
+                }
+        int maxSetor = 0;
+        for (int c : setores) maxSetor = Math.max(maxSetor, c);
+        int limiar = maxSetor / 6;
+        int setoresPreench = 0;
+        for (int c : setores) if (c > limiar) setoresPreench++;
+
+        // ── F3: borda interna ────────────────────────────────────────
+        double rInterno = raioPico * 0.70;
+        int bxMin = w, bxMax = 0, byMin = h, byMax = 0;
+        boolean temBordaInterna = false;
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+                if ((bordas.getRGB(x, y) & 0xFF) > 128) {
+                    double dist = Math.sqrt((x-cx)*(x-cx) + (y-cy)*(y-cy));
+                    if (dist < rInterno) {
+                        temBordaInterna = true;
+                        if (x < bxMin) bxMin = x;
+                        if (x > bxMax) bxMax = x;
+                        if (y < byMin) byMin = y;
+                        if (y > byMax) byMax = y;
+                    }
+                }
+        double razaoLH = (temBordaInterna && byMax > byMin)
+            ? (double)(bxMax - bxMin) / (byMax - byMin) : 0;
+
+        // ── Qual feature foi decisiva? ───────────────────────────────
+        String featureDecisiva;
+        if (scoreCirculo < 0.35) {
+            featureDecisiva = setoresPreench <= 5
+                ? "F1+F2: score baixo + poucos setores → PARE"
+                : "F1+F2: score baixo + muitos setores → Sentido Proibido";
+        } else if (setoresPreench >= 6 || scoreCirculo > 0.44) {
+            featureDecisiva = "F1+F2: score alto / setores cheios → Vel. Maxima";
+        } else if (temBordaInterna && razaoLH > 1.5) {
+            featureDecisiva = "F3: borda interna larga (razao=" + String.format("%.2f", razaoLH) + ") → Sent. Proibido";
+        } else {
+            featureDecisiva = "F3: borda interna vertical (razao=" + String.format("%.2f", razaoLH) + ") → Prob. Estacionar";
+        }
+
+        // ── Desenho ──────────────────────────────────────────────────
+        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = out.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.drawImage(img, 0, 0, null);
+
+        // Anel de detecção (amarelo = zona onde procura a borda da placa)
+        g2.setColor(new Color(255, 200, 0, 80));
+        g2.fillOval((int)(cx - rMax), (int)(cy - rMax), (int)(2*rMax), (int)(2*rMax));
+        g2.setColor(new Color(30, 30, 30, 80));
+        g2.fillOval((int)(cx - rMin), (int)(cy - rMin), (int)(2*rMin), (int)(2*rMin));
+
+        // Círculo do raio pico (tracejado amarelo)
+        g2.setStroke(new BasicStroke(2.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND,
+                1, new float[]{8, 5}, 0));
+        g2.setColor(new Color(255, 200, 0));
+        g2.drawOval(cx - raioPico, cy - raioPico, 2*raioPico, 2*raioPico);
+
+        // Círculo interno do F3 (tracejado ciano) — onde procura símbolo interno
+        g2.setStroke(new BasicStroke(1.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND,
+                1, new float[]{5, 4}, 0));
+        g2.setColor(new Color(0, 220, 255, 150));
+        int ri = (int) rInterno;
+        g2.drawOval(cx - ri, cy - ri, 2*ri, 2*ri);
+
+        // Ponto central
+        g2.setStroke(new BasicStroke(2));
+        g2.setColor(Color.YELLOW);
+        g2.fillOval(cx - 5, cy - 5, 10, 10);
+
+        // Pixels da borda interna (F3) destacados em ciano
+        if (temBordaInterna) {
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                    if ((bordas.getRGB(x, y) & 0xFF) > 128) {
+                        double dist = Math.sqrt((x-cx)*(x-cx) + (y-cy)*(y-cy));
+                        if (dist < rInterno)
+                            out.setRGB(x, y, new Color(0, 255, 255, 200).getRGB());
+                    }
+
+            // Retângulo bounding box da região interna
+            g2.setStroke(new BasicStroke(1.5f));
+            g2.setColor(new Color(0, 220, 255));
+            g2.drawRect(bxMin, byMin, bxMax - bxMin, byMax - byMin);
+        }
+
+        // Pixels que estão NO ANEL (F1) destacados em laranja
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+                if ((bordas.getRGB(x, y) & 0xFF) > 128) {
+                    double dist = Math.sqrt((x-cx)*(x-cx) + (y-cy)*(y-cy));
+                    if (dist >= rMin && dist <= rMax)
+                        out.setRGB(x, y, new Color(255, 140, 0, 220).getRGB());
+                }
+
+        // Arcos dos setores (F2) — verde = ativo, vermelho = vazio
+        g2.setStroke(new BasicStroke(7));
+        for (int s = 0; s < 8; s++) {
+            double angInicio = s * 45.0 - 90;
+            boolean ativo = setores[s] > limiar;
+            g2.setColor(ativo ? new Color(0, 255, 120, 180) : new Color(255, 60, 60, 80));
+            g2.drawArc(cx - raioPico, cy - raioPico, 2*raioPico, 2*raioPico,
+                    (int)-angInicio, -40);
+        }
+
+        // ── Painel de debug ──────────────────────────────────────────
+        g2.setFont(new Font("Consolas", Font.BOLD, 13));
+        String[] linhas = {
+            "Tipo: " + tipoDetectado,
+            String.format("Raio detectado: %d px", raioPico),
+            String.format("F1 Score circular: %.3f  (thresh 0.35 / 0.44)", scoreCirculo),
+            String.format("F2 Setores preench: %d / 8  (thresh 5 ou 6)", setoresPreench),
+            String.format("F3 Borda interna: %s  razao=%.2f  (thresh 1.5)",
+                temBordaInterna ? "SIM" : "NAO", razaoLH),
+            "Decisao: " + featureDecisiva
+        };
+
+        int panelW = 520, panelH = linhas.length * 20 + 12;
+        g2.setColor(new Color(0, 0, 0, 190));
+        g2.fillRoundRect(8, 8, panelW, panelH, 8, 8);
+
+        for (int i = 0; i < linhas.length; i++) {
+            // Última linha (Decisão) em verde claro para destacar
+            g2.setColor(i == linhas.length - 1
+                ? new Color(100, 255, 140)
+                : new Color(255, 220, 50));
+            g2.drawString(linhas[i], 14, 26 + i * 20);
+        }
+
+        // Legenda das cores no canto inferior esquerdo
+        g2.setFont(new Font("Consolas", Font.PLAIN, 11));
+        String[] legenda = {
+            "● Laranja = pixels no anel (F1/F2)",
+            "● Verde/Vermelho = setores ativos/inativos (F2)",
+            "● Ciano = borda interna + bbox (F3)",
+            "● Ciano tracejado = raio interno (F3)"
+        };
+        Color[] coresLegenda = {
+            new Color(255, 140, 0),
+            new Color(0, 255, 120),
+            new Color(0, 220, 255),
+            new Color(0, 220, 255)
+        };
+        int ly = h - legenda.length * 18 - 10;
+        g2.setColor(new Color(0, 0, 0, 170));
+        g2.fillRoundRect(8, ly - 6, 320, legenda.length * 18 + 12, 6, 6);
+        for (int i = 0; i < legenda.length; i++) {
+            g2.setColor(coresLegenda[i]);
+            g2.drawString(legenda[i], 14, ly + i * 18 + 12);
+        }
+
+        g2.dispose();
+        return out;
     }
 
     // =========================================================
@@ -922,5 +1274,137 @@ public class Exercicios {
         return "Maior = " + maior + " | Menor = " + menor
             + "\nBarras detectadas: " + alturasBarras.size()
             + "\nAlturas (px): " + alturasBarras;
+
+            
     }
+    public static BufferedImage desenharBarras(BufferedImage img) {
+        int w = img.getWidth(), h = img.getHeight();
+
+        int[] alturaColuna = new int[w];
+        // Também guarda a posição Y mais alta da barra em cada coluna
+        int[] topoColuna = new int[w];
+        Arrays.fill(topoColuna, h);
+
+        for (int x = 0; x < w; x++) {
+            for (int y = 0; y < h; y++) {
+                int rgb = img.getRGB(x, y);
+                int r = (rgb >> 16) & 0xFF;
+                int g = (rgb >> 8)  & 0xFF;
+                int b =  rgb        & 0xFF;
+                if (r > 200 && g < 160 && b < 160 && r > g + 60) {
+                    alturaColuna[x]++;
+                    if (y < topoColuna[x]) topoColuna[x] = y;
+                }
+            }
+        }
+
+        // Agrupa em barras (mesmo algoritmo do compararBarras)
+        List<int[]> barras = new ArrayList<>(); // {xInicio, xFim, alturaMax, topoMin}
+        int tolerancia = Math.max(5, w / 100);
+        int x = 0;
+
+        while (x < w) {
+            if (alturaColuna[x] == 0) { x++; continue; }
+
+            int maxAltura = 0, topoMin = h;
+            int gapAtual = 0, inicio = x;
+
+            while (x < w) {
+                if (alturaColuna[x] == 0) {
+                    gapAtual++;
+                    if (gapAtual > tolerancia) break;
+                } else {
+                    gapAtual = 0;
+                    if (alturaColuna[x] > maxAltura) maxAltura = alturaColuna[x];
+                    if (topoColuna[x] < topoMin) topoMin = topoColuna[x];
+                }
+                x++;
+            }
+
+            if ((x - inicio) > w / 100)
+                barras.add(new int[]{inicio, x - gapAtual - 1, maxAltura, topoMin});
+        }
+
+        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = out.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.drawImage(img, 0, 0, null);
+
+        if (barras.isEmpty()) { g2.dispose(); return out; }
+
+        int maior = barras.stream().mapToInt(b -> b[2]).max().getAsInt();
+        int menor = barras.stream().mapToInt(b -> b[2]).min().getAsInt();
+
+        g2.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        g2.setStroke(new BasicStroke(2.5f));
+
+        for (int i = 0; i < barras.size(); i++) {
+            int[] b = barras.get(i);
+            int bx = b[0], bfim = b[1], balt = b[2], btopo = b[3];
+            int bw2 = bfim - bx + 1;
+
+            boolean ehMaior = balt == maior;
+            boolean ehMenor = balt == menor;
+
+            // Overlay semitransparente sobre a barra
+            Color fill = ehMaior ? new Color(0, 200, 80, 60)
+                    : ehMenor ? new Color(220, 60, 60, 60)
+                    : new Color(255, 200, 0, 40);
+            g2.setColor(fill);
+            g2.fillRect(bx, btopo, bw2, balt);
+
+            // Contorno
+            Color borda = ehMaior ? new Color(0, 230, 80)
+                        : ehMenor ? new Color(230, 60, 60)
+                        : new Color(255, 200, 0);
+            g2.setColor(borda);
+            g2.drawRect(bx, btopo, bw2, balt);
+
+            // Linha de topo
+            g2.setStroke(new BasicStroke(2));
+            g2.drawLine(bx, btopo, bfim, btopo);
+            g2.setStroke(new BasicStroke(2.5f));
+
+            // Label acima da barra
+            String tag = (ehMaior ? "▲ MAIOR" : ehMenor ? "▼ MENOR" : "#" + (i+1))
+                    + "  " + balt + "px";
+            FontMetrics fm = g2.getFontMetrics();
+            int tw = fm.stringWidth(tag) + 8;
+            int ly = btopo - fm.getHeight() - 4;
+            if (ly < 0) ly = btopo + 4;
+
+            g2.setColor(new Color(0, 0, 0, 170));
+            g2.fillRoundRect(bx, ly, tw, fm.getHeight() + 4, 4, 4);
+            g2.setColor(borda);
+            g2.drawString(tag, bx + 4, ly + fm.getHeight());
+
+            // Seta de altura no lado direito da barra
+            int ax = bfim + 6;
+            if (ax + 50 < w) {
+                g2.setColor(new Color(255, 255, 255, 180));
+                g2.setStroke(new BasicStroke(1.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND,
+                        1, new float[]{4, 3}, 0));
+                g2.drawLine(ax, btopo, ax, btopo + balt);
+                g2.setStroke(new BasicStroke(2.5f));
+            }
+        }
+
+        // Painel de resumo no canto
+        g2.setFont(new Font("Consolas", Font.BOLD, 13));
+        String[] linhas = {
+            "Barras: " + barras.size(),
+            "Maior: " + maior + " px",
+            "Menor: " + menor + " px"
+        };
+        int pw = 180, ph = linhas.length * 20 + 12;
+        g2.setColor(new Color(0, 0, 0, 180));
+        g2.fillRoundRect(8, 8, pw, ph, 8, 8);
+        g2.setColor(new Color(255, 220, 50));
+        for (int i2 = 0; i2 < linhas.length; i2++)
+            g2.drawString(linhas[i2], 14, 26 + i2 * 20);
+
+        g2.dispose();
+        return out;
+    }
+
 }
