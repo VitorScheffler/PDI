@@ -1,5 +1,7 @@
 import java.awt.image.BufferedImage;
 import java.util.*;
+import java.util.List;
+import java.awt.*;
 
 
 public class Exercicios {
@@ -110,257 +112,319 @@ public class Exercicios {
         if (g >= r && g >= b) return "verde";
         return "azul";
     }
-    private static boolean[][] binarizar(BufferedImage img, int threshold) {
-        int w = img.getWidth();
-        int h = img.getHeight();
-        boolean[][] bin = new boolean[h][w];
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                int rgb = img.getRGB(x, y);
-                int r = (rgb >> 16) & 0xFF;
-                int g = (rgb >>  8) & 0xFF;
-                int b =  rgb        & 0xFF;
-                int lum = (r + g + b) / 3;
-                bin[y][x] = (lum < threshold);
-            }
-        }
-        return bin;
-    }
-    private static int[] encontrarPino(boolean[][] bin,
-                                        int cx, int cy,
-                                        int w, int h, int janela) {
-        // Tenta janela inicial
-        long somaX = 0, somaY = 0, count = 0;
-        int y0 = Math.max(0, cy - janela);
-        int y1 = Math.min(h, cy + janela);
-        int x0 = Math.max(0, cx - janela);
-        int x1 = Math.min(w, cx + janela);
-
-        for (int y = y0; y < y1; y++) {
-            for (int x = x0; x < x1; x++) {
-                if (bin[y][x]) { somaX += x; somaY += y; count++; }
-            }
-        }
-
-        if (count >= 10) {
-            return new int[]{ (int)(somaX / count), (int)(somaY / count) };
-        }
-
-        // Fallback: raio crescente até 15% da menor dimensão
-        int raioMax = Math.min(w, h) / 2;
-        for (int r = janela; r <= raioMax * 15 / 100; r += 10) {
-            somaX = 0; somaY = 0; count = 0;
-            y0 = Math.max(0, cy - r); y1 = Math.min(h, cy + r);
-            x0 = Math.max(0, cx - r); x1 = Math.min(w, cx + r);
-            for (int y = y0; y < y1; y++) {
-                for (int x = x0; x < x1; x++) {
-                    if (bin[y][x]) { somaX += x; somaY += y; count++; }
-                }
-            }
-            if (count >= 10) {
-                return new int[]{ (int)(somaX / count), (int)(somaY / count) };
-            }
-        }
-
-        // Último recurso: centro geométrico
-        return new int[]{ cx, cy };
-    }
-    private static boolean[][] erodirCruz(boolean[][] src, int w, int h) {
-        boolean[][] dst = new boolean[h][w];
-        for (int y = 1; y < h - 1; y++) {
-            for (int x = 1; x < w - 1; x++) {
-                dst[y][x] = src[y][x]
-                         && src[y-1][x]
-                         && src[y+1][x]
-                         && src[y][x-1]
-                         && src[y][x+1];
-            }
-        }
-        return dst;
-    }
-    private static int indiceMaior(double[] arr) {
-        int idx = 0;
-        for (int i = 1; i < arr.length; i++) {
-            if (arr[i] > arr[idx]) idx = i;
-        }
-        return idx;
-    }
-    private static String angToClock(int ang) {
-        // converte 0° = 12h, sentido horário
-        int h = (int) Math.round((ang % 360) / 30.0);
-        if (h == 0) h = 12;
-        return h + "h";
-    }
 
     // =========================================================
     //  EXERCÍCIO 1 — Leitura de horário em relógio analógico
     // =========================================================
 
-    public static String lerRelogio(BufferedImage img) {
+    public static class ResultadoRelogio {
+        double centroX, centroY, raio;
+        double anguloMaior, comprimentoMaior; // minutos
+        double anguloMenor, comprimentoMenor; // horas
+    }
 
+    public static ResultadoRelogio detectarPonteiros(BufferedImage img) {
         int w = img.getWidth();
         int h = img.getHeight();
-        int cx = w / 2;
-        int cy = h / 2;
 
-        // Raio estimado (imagens assumidas com relógio bem centralizado)
-        int raio = Math.min(w, h) / 2;
+        // 1) Máscara inicial de pixels escuros + bbox para estimar raio/centro aproximados
+        boolean[][] escuro = new boolean[h][w];
+        int minX = w, maxX = 0, minY = h, maxY = 0;
 
-        // ── 1. Binarizar ──────────────────────────────────────────
-        boolean[][] bin = binarizar(img, 128);
-
-        // ── 2. Encontrar o pino central ───────────────────────────
-        // Centróide dos pixels pretos numa janela de 80x80 ao redor
-        // do centro geométrico da imagem.
-        int[] pino = encontrarPino(bin, cx, cy, w, h, 80);
-        int pcx = pino[0];
-        int pcy = pino[1];
-
-        // ── 3. Erosão morfológica 3x ──────────────────────────────
-        // Remove elementos finos (borda, tracinhos, números) e
-        // mantém os ponteiros, que são mais espessos.
-        boolean[][] erodido = bin;
-        for (int i = 0; i < 3; i++) {
-            erodido = erodirCruz(erodido, w, h);
-        }
-
-        // ── 4. Scan radial com peso por distância ─────────────────
-        // Para cada ângulo θ (0–359°), percorre raios do pino para
-        // fora e soma as distâncias dos pixels pretos erodidos.
-        // Isso favorece ponteiros longos sobre marcações curtas.
-        double[] hist = new double[360];
-        double rMin = raio * 0.07;
-        double rMax = raio * 0.72;
-
-        for (int angDeg = 0; angDeg < 360; angDeg++) {
-            double ang = Math.toRadians(angDeg);
-            double sinA = Math.sin(ang);
-            double cosA = Math.cos(ang);
-            double score = 0;
-
-            for (double r = rMin; r <= rMax; r += 2.0) {
-                int x = (int) Math.round(pcx + r * sinA);
-                int y = (int) Math.round(pcy - r * cosA);
-                if (x < 0 || x >= w || y < 0 || y >= h) break;
-                if (erodido[y][x]) {
-                    score += r;   // peso = distância ao pino
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                boolean e = isEscuro(img.getRGB(x, y));
+                escuro[y][x] = e;
+                if (e) {
+                    if (x < minX) minX = x;
+                    if (x > maxX) maxX = x;
+                    if (y < minY) minY = y;
+                    if (y > maxY) maxY = y;
                 }
             }
-            hist[angDeg] = score;
         }
 
-        // ── 5. Suavizar histograma (janela ±4°) ───────────────────
-        double[] histS = new double[360];
-        for (int i = 0; i < 360; i++) {
-            double soma = 0;
-            for (int j = -4; j <= 4; j++) {
-                soma += hist[(i + j + 360) % 360];
+        double centroAproxX = (minX + maxX) / 2.0;
+        double centroAproxY = (minY + maxY) / 2.0;
+        double raio = ((maxX - minX) + (maxY - minY)) / 4.0;
+
+        // 1.1) Dilata a máscara para fechar pequenas falhas de conectividade
+        //      no traço dos ponteiros (antialiasing / compressão JPEG),
+        //      reaproveitando a morfologia já existente em Opcoes.
+        escuro = dilatarMascara(escuro, w, h, 2);
+
+        // 2) Os ponteiros formam UM ÚNICO componente conectado (compartilham o
+        //    pino central). Números e marcações são componentes separados —
+        //    isolando o componente que contém o centro, descartamos tudo o resto.
+        int[] seed = encontrarPixelEscuroMaisProximo(escuro, w, h,
+                (int) Math.round(centroAproxX), (int) Math.round(centroAproxY),
+                (int) (raio * 0.15));
+
+        ResultadoRelogio vazio = new ResultadoRelogio();
+        vazio.anguloMenor = -1;
+        if (seed == null) return vazio;
+
+        List<int[]> componentePonteiros = floodFillComponente(escuro, w, h, seed[0], seed[1]);
+
+        // 3) Centro refinado: centróide dos pixels do componente bem próximos
+        //    do centro aproximado (região do pino) — mais preciso que o bbox geral.
+        double somaX = 0, somaY = 0;
+        int contPino = 0;
+        double raioPino = raio * 0.06;
+        for (int[] p : componentePonteiros) {
+            double dx = p[0] - centroAproxX;
+            double dy = p[1] - centroAproxY;
+            if (Math.sqrt(dx * dx + dy * dy) <= raioPino) {
+                somaX += p[0];
+                somaY += p[1];
+                contPino++;
             }
-            histS[i] = soma / 9.0;
         }
+        double centroX = (contPino > 0) ? somaX / contPino : centroAproxX;
+        double centroY = (contPino > 0) ? somaY / contPino : centroAproxY;
 
-        // ── 6. Encontrar 2 picos principais ───────────────────────
-        // Pico 1: ângulo de maior score.
-        int p1 = indiceMaior(histS);
+        // 4) Perfil radial — agora só sobre os pixels dos ponteiros
+        //    (números/marcações já ficaram fora do componente).
+        int bins = 360;
+        double[] maxDistPorAngulo = new double[bins];
 
-        // Pico 2: maior score fora de ±30° do pico 1.
-        int p2 = -1;
-        double melhor = -1;
-        for (int i = 0; i < 360; i++) {
-            int diff = Math.abs(i - p1);
-            diff = Math.min(diff, 360 - diff);
-            if (diff < 30) continue;
-            if (histS[i] > melhor) {
-                melhor = histS[i];
-                p2 = i;
+        for (int[] p : componentePonteiros) {
+            double dx = p[0] - centroX;
+            double dy = centroY - p[1]; // inverte Y
+            double dist = Math.sqrt(dx * dx + dy * dy);
+
+            double anguloGraus = Math.toDegrees(Math.atan2(dy, dx));
+            if (anguloGraus < 0) anguloGraus += 360;
+
+            int bin = (int) (anguloGraus / (360.0 / bins)) % bins;
+            if (dist > maxDistPorAngulo[bin]) {
+                maxDistPorAngulo[bin] = dist;
             }
         }
 
-        if (p2 == -1) {
-            return "Não foi possível identificar os ponteiros.";
+        // 5) Ponteiro mais longo = maior valor do perfil radial
+        int binMaior = 0;
+        for (int i = 1; i < bins; i++) {
+            if (maxDistPorAngulo[i] > maxDistPorAngulo[binMaior]) binMaior = i;
+        }
+        double comprimentoMaior = maxDistPorAngulo[binMaior];
+
+        // 6) Em vez de uma janela fixa de exclusão em graus, descobre
+        //    dinamicamente até onde o ponteiro maior se estende angularmente
+        //    (cobre a ponta em seta, que costuma ser mais larga que o traço).
+        double limiarOcupacao = comprimentoMaior * 0.5;
+        boolean[] excluido = new boolean[bins];
+        excluido[binMaior] = true;
+
+        int i = binMaior;
+        while (true) {
+            int prox = (i + 1) % bins;
+            if (prox == binMaior || maxDistPorAngulo[prox] < limiarOcupacao) break;
+            excluido[prox] = true;
+            i = prox;
+        }
+        i = binMaior;
+        while (true) {
+            int prox = (i - 1 + bins) % bins;
+            if (prox == binMaior || maxDistPorAngulo[prox] < limiarOcupacao) break;
+            excluido[prox] = true;
+            i = prox;
         }
 
-        // ── DEBUG DOS PONTEIROS ───────────────────────────────────────
-        System.out.println("\n========== DEBUG RELÓGIO ==========");
-
-        System.out.println("Pico 1: " + p1 + "° | score=" + histS[p1]);
-        System.out.println("Pico 2: " + p2 + "° | score=" + histS[p2]);
-
-        // separação angular
-        int diff = Math.abs(p1 - p2);
-        diff = Math.min(diff, 360 - diff);
-        System.out.println("Diferença angular entre picos: " + diff + "°");
-
-        // decisão de minuto/hora (como está hoje no seu código)
-        int angMinuto, angHora;
-
-        double len1 = calcularComprimento(erodido, p1, pcx, pcy, w, h);
-        double len2 = calcularComprimento(erodido, p2, pcx, pcy, w, h);
-
-        // bônus: alinhamento com múltiplos de 30° (hora “gosta” disso)
-        double align1 = 1.0 - (Math.min(p1 % 30, 30 - (p1 % 30)) / 15.0);
-        double align2 = 1.0 - (Math.min(p2 % 30, 30 - (p2 % 30)) / 15.0);
-
-        // ponteiro de hora tende a alinhar melhor com marcações
-        double score1 = len1 * 1.0 + align1 * 20;
-        double score2 = len2 * 1.0 + align2 * 20;
-
-        // regra híbrida leve (não dominante)
-        if (score1 >= score2) {
-            angMinuto = p1;
-            angHora = p2;
-        } else {
-            angMinuto = p2;
-            angHora = p1;
+        // Margem extra de segurança (alguns graus) para garantir que não
+        // sobre nenhum resquício da base larga do ponteiro maior
+        int margemExtra = 8;
+        boolean[] excluidoFinal = excluido.clone();
+        for (int b = 0; b < bins; b++) {
+            if (!excluido[b]) continue;
+            for (int d = -margemExtra; d <= margemExtra; d++) {
+                excluidoFinal[((b + d) % bins + bins) % bins] = true;
+            }
         }
 
-        // normaliza função angular
-        String dirMin = angToClock(angMinuto);
-        String dirHora = angToClock(angHora);
+        // 7) Ponteiro mais curto = maior valor do perfil radial fora da região excluída
+        int binMenor = -1;
+        double comprimentoMenor = -1;
+        for (int b = 0; b < bins; b++) {
+            if (excluidoFinal[b]) continue;
+            if (maxDistPorAngulo[b] > comprimentoMenor) {
+                comprimentoMenor = maxDistPorAngulo[b];
+                binMenor = b;
+            }
+        }
 
-        // “tamanho” (proxy de força do ponteiro)
-        double tamMin = histS[angMinuto];
-        double tamHora = histS[angHora];
-
-        System.out.println("\n-- Ponteiro MINUTOS --");
-        System.out.println("Ângulo: " + angMinuto + "° (" + dirMin + ")");
-        System.out.println("Força/Comprimento: " + tamMin);
-
-        System.out.println("\n-- Ponteiro HORAS --");
-        System.out.println("Ângulo: " + angHora + "° (" + dirHora + ")");
-        System.out.println("Força/Comprimento: " + tamHora);
-
-        System.out.println("===================================\n");
-
-        // ── 8. Converter ângulos → hora e minuto ──────────────────
-        // Cada posição de hora ocupa 30° (360° / 12).
-        // Arredondamos para o número mais próximo do mostrador.
-        int hora = (int) Math.floor(angHora / 30.0);
-        hora = (hora == 0) ? 12 : hora;
-
-        int minuto = (int) Math.round(angMinuto / 6.0) % 60;
-
-        return String.format("%02d:%02d", hora, minuto);
+        ResultadoRelogio r = new ResultadoRelogio();
+        r.centroX = centroX;
+        r.centroY = centroY;
+        r.raio = raio;
+        r.anguloMaior = binMaior * (360.0 / bins);
+        r.comprimentoMaior = comprimentoMaior;
+        r.anguloMenor = (binMenor == -1) ? -1 : binMenor * (360.0 / bins);
+        r.comprimentoMenor = comprimentoMenor;
+        return r;
     }
-    
-    private static double calcularComprimento(boolean[][] img, int ang, int cx, int cy, int w, int h) {
-        double rad = Math.toRadians(ang);
-        double sin = Math.sin(rad);
-        double cos = Math.cos(rad);
 
-        for (int r = 0; r < Math.min(w, h) / 2; r++) {
-            int x = (int) Math.round(cx + r * sin);
-            int y = (int) Math.round(cy - r * cos);
+    private static boolean[][] dilatarMascara(boolean[][] mask, int w, int h, int iteracoes) {
+        BufferedImage bin = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+                bin.setRGB(x, y, mask[y][x] ? 0xFFFFFFFF : 0xFF000000); // objeto=branco, fundo=preto
 
-            if (x < 0 || x >= w || y < 0 || y >= h) break;
+        for (int it = 0; it < iteracoes; it++) {
+            bin = Opcoes.dilatacao(bin);
+        }
 
-            if (!img[y][x]) {
-                return r; // fim do ponteiro
+        boolean[][] out = new boolean[h][w];
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+                out[y][x] = (bin.getRGB(x, y) & 0xFF) > 128; // branco = objeto
+
+        return out;
+    }
+
+    private static int[] encontrarPixelEscuroMaisProximo(boolean[][] escuro, int w, int h,
+                                                        int cx, int cy, int raioMax) {
+        if (cx >= 0 && cx < w && cy >= 0 && cy < h && escuro[cy][cx]) {
+            return new int[]{cx, cy};
+        }
+        for (int r = 1; r <= raioMax; r++) {
+            for (int dy = -r; dy <= r; dy++) {
+                for (int dx = -r; dx <= r; dx++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dy)) != r) continue; // só o "anel" externo
+                    int x = cx + dx, y = cy + dy;
+                    if (x < 0 || x >= w || y < 0 || y >= h) continue;
+                    if (escuro[y][x]) return new int[]{x, y};
+                }
             }
         }
-        return Math.min(w, h) / 2;
+        return null;
     }
-    
+
+    private static List<int[]> floodFillComponente(boolean[][] escuro, int w, int h,
+                                                    int startX, int startY) {
+        List<int[]> pixels = new ArrayList<>();
+        boolean[][] visitado = new boolean[h][w];
+        Deque<int[]> pilha = new ArrayDeque<>();
+        pilha.push(new int[]{startX, startY});
+        visitado[startY][startX] = true;
+
+        while (!pilha.isEmpty()) {
+            int[] p = pilha.pop();
+            int px = p[0], py = p[1];
+            pixels.add(p);
+
+            for (int dy = -1; dy <= 1; dy++) {
+                for (int dx = -1; dx <= 1; dx++) {
+                    if (dx == 0 && dy == 0) continue;
+                    int x = px + dx, y = py + dy;
+                    if (x < 0 || x >= w || y < 0 || y >= h) continue;
+                    if (visitado[y][x] || !escuro[y][x]) continue;
+                    visitado[y][x] = true;
+                    pilha.push(new int[]{x, y});
+                }
+            }
+        }
+        return pixels;
+    }
+
+    public static String formatarResultadoRelogio(ResultadoRelogio r) {
+        if (r.anguloMenor < 0) {
+            return "Não foi possível identificar dois ponteiros distintos.";
+        }
+        return String.format(
+            "Centro: (%.0f, %.0f) | Raio: %.0f px%n" +
+            "Ponteiro MINUTOS (longo):  %.1f px  (ângulo ~%.0f°)%n" +
+            "Ponteiro HORAS   (curto):  %.1f px  (ângulo ~%.0f°)%n" +
+            "Horário detectado: %s",
+            r.centroX, r.centroY, r.raio,
+            r.comprimentoMaior, r.anguloMaior,
+            r.comprimentoMenor, r.anguloMenor,
+            calcularHorario(r)
+        );
+    }
+
+    public static BufferedImage desenharPonteiros(BufferedImage original, ResultadoRelogio r) {
+        BufferedImage out = new BufferedImage(
+            original.getWidth(), original.getHeight(), BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = out.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.drawImage(original, 0, 0, null);
+
+        if (r.anguloMenor >= 0) {
+            g2.setFont(new Font("Segoe UI", Font.BOLD, 14));
+            g2.setStroke(new BasicStroke(3));
+
+            // Ponteiro dos MINUTOS — azul
+            desenharPonteiro(g2, r.centroX, r.centroY, r.anguloMaior, r.comprimentoMaior,
+                    new Color(30, 100, 230), "MIN: " + (int) r.comprimentoMaior + "px");
+
+            // Ponteiro das HORAS — vermelho
+            desenharPonteiro(g2, r.centroX, r.centroY, r.anguloMenor, r.comprimentoMenor,
+                    new Color(220, 40, 40), "HOR: " + (int) r.comprimentoMenor + "px");
+
+            // Marca o centro
+            g2.setColor(Color.GREEN);
+            int raioMarcador = 4;
+            g2.fillOval((int) r.centroX - raioMarcador, (int) r.centroY - raioMarcador,
+                    raioMarcador * 2, raioMarcador * 2);
+        }
+
+        g2.dispose();
+        return out;
+    }
+
+    private static void desenharPonteiro(Graphics2D g2, double cx, double cy,
+                                        double anguloGraus, double comprimento,
+                                        Color cor, String rotulo) {
+        double rad = Math.toRadians(anguloGraus);
+        double px = cx + comprimento * Math.cos(rad);
+        double py = cy - comprimento * Math.sin(rad); // inverte Y de volta
+
+        g2.setColor(cor);
+        g2.drawLine((int) cx, (int) cy, (int) px, (int) py);
+
+        // Pequeno círculo na ponta do ponteiro
+        g2.fillOval((int) px - 5, (int) py - 5, 10, 10);
+
+        // Texto com o comprimento, deslocado um pouco da ponta
+        int textX = (int) px + 8;
+        int textY = (int) py;
+        g2.setColor(Color.BLACK);
+        g2.drawString(rotulo, textX + 1, textY + 1); // sombra leve
+        g2.setColor(cor);
+        g2.drawString(rotulo, textX, textY);
+    }
+
+    private static boolean isEscuro(int rgb) {
+        int r = (rgb >> 16) & 0xFF;
+        int g = (rgb >> 8)  & 0xFF;
+        int b =  rgb        & 0xFF;
+        // Considera "escuro" qualquer pixel próximo do preto, com tolerância
+        // a cinzas intermediários (antialiasing / compressão JPEG)
+        return (r + g + b) < 380;
+    }
+
+    public static String calcularHorario(ResultadoRelogio r) {
+        if (r.anguloMenor < 0) {
+            return "Não foi possível calcular o horário.";
+        }
+
+        // Converte ângulo matemático → ângulo do relógio
+        // Ângulo matemático: 0° = direita, anti-horário
+        // Ângulo do relógio: 0° = 12h, horário
+        double anguloMinutos = (90.0 - r.anguloMaior % 360 + 360) % 360;
+        double anguloHoras   = (90.0 - r.anguloMenor % 360 + 360) % 360;
+
+        // Minutos: cada minuto = 6°
+        int minutos = (int) Math.round(anguloMinutos / 6.0) % 60;
+
+        // Horas: cada hora = 30°; o ponteiro está sempre na hora exata
+        int horas = (int) Math.round(anguloHoras / 30.0) % 12;
+        if (horas == 0) horas = 12; // 0 → 12
+
+        return String.format("%02d:%02d", horas, minutos);
+    }
+
     // =========================================================
     //  EXERCÍCIO 2 — Contagem de objetos coloridos por cor - OK
     // =========================================================
@@ -620,16 +684,6 @@ public class Exercicios {
             return "A";
 
         double aspecto = (double) largura / altura;
-
-        System.out.printf(
-    "DEBUG r=%d bbox=%dx%d aspecto=%.3f buracos=%d razaoEsq=%.2f%n",
-        r,
-        largura,
-        altura,
-        aspecto,
-        buracos,
-        razaoEsq
-    );
 
         // C costuma concentrar mais pixels à esquerda
         if (razaoEsq > 0.60)

@@ -675,12 +675,17 @@ public class PDI extends JFrame {
     // =========================================================
     //  EXERCÍCIOS RESOLVIDOS
     // =========================================================
-
+    
     private void exercicio1() {
         if (semImagem()) return;
-        String resultado = Exercicios.lerRelogio(imgOriginal);
+
+        Exercicios.ResultadoRelogio resultado = Exercicios.detectarPonteiros(imgOriginal);
+        imgTransformada = Exercicios.desenharPonteiros(imgOriginal, resultado);
+        mostrar("Ponteiros detectados");
+
+        String texto = Exercicios.formatarResultadoRelogio(resultado);
         JOptionPane.showMessageDialog(this,
-                "Horário identificado: " + resultado,
+                texto,
                 "Exercício 1 — Relógio Analógico",
                 JOptionPane.INFORMATION_MESSAGE);
     }
